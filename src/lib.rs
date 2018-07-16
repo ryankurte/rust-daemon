@@ -3,23 +3,25 @@
 #[macro_use]
 extern crate log;
 extern crate libc;
+extern crate users;
 
 use std::io::{Write, Read};
 
 use std::io::Error as IoError;
 use std::io::ErrorKind as IoErrorKind;
+use std::ops::Deref;
 
 use std::thread;
+use std::thread::{JoinHandle};
 use std::net::Shutdown;
 
 use std::os::unix::net::{UnixStream, UnixListener};
-use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd};
 
-use std::mem;
-use std::ffi::{CStr, CString};
 
-use libc::{uid_t, gid_t, c_int, getpwuid_r};
+mod permissions;
+use permissions::get_fd_user_groups;
 
+#[derive(Debug)]
 pub enum DaemonError {
     IoError(IoError),
     GetPeerIdError(usize),
@@ -31,84 +33,22 @@ impl From<IoError> for DaemonError {
     }
 }
 
+pub type ACL = FnMut(&String, &[String]) -> bool;
 
-pub struct Server<ACL> {
+pub fn NoACL(_user: &String, _groups: &[String]) -> bool { true }
+
+pub struct Server {
     listener: UnixListener,
-    acl: Option<ACL>
+    acl: Box<ACL>,
+    children: Vec<JoinHandle<()>>,
 }
 
-fn get_uid_gid(cid: i32) -> Result<(u32, u32), IoError> {
-    let mut uid: uid_t = 0;
-    let mut gid: gid_t = 0;
-
-    unsafe {
-        let res = libc::getpeereid(cid, &mut uid, &mut gid);
-        if res < 0 {
-            return Err(IoError::new(IoErrorKind::Other, format!("libc::getpeerid error: {}", res)));
-        }
-    }
-
-    Ok((uid, gid))
-}
-
-struct User {
-    name: String,
-    gid: u32,
-}
-
-impl User {
-    fn from_uid(uid: u32) -> Result<User, IoError> {
-        unsafe {
-            let mut passwd: libc::passwd = mem::uninitialized();;
-            let mut result: *mut libc::passwd = mem::uninitialized();;
-            let mut buff = vec![0i8; 1024];
-
-            let res = libc::getpwuid_r(uid, &mut passwd, buff.as_mut_ptr(), buff.len(), &mut result);
-            if res < 0 {
-                return Err(IoError::new(IoErrorKind::Other, format!("libc::getpwuid_r error: {}", res)));
-            }
-
-            let name = CStr::from_ptr(passwd.pw_name).to_str().unwrap();
-            return Ok(User{name: name.to_string(), gid: passwd.pw_gid})
-        }
-    }
-
-    fn get_groups(&mut self) -> Result<Vec<String>, IoError> {
-        unsafe {
-            let mut groups: Vec<i32> = vec![0; 1024];
-
-            let username = CString::new(self.name.as_str()).unwrap();
-            let gid = self.gid as i32;
-            let mut count = groups.len() as c_int;
-
-            let res = libc::getgrouplist(username.as_ptr(), gid, groups.as_mut_ptr(), &mut count);
-            if res < 0 {
-                return Err(IoError::new(IoErrorKind::Other, format!("libc::getgrouplist error: {}", res)));
-            }
-
-            let mut names: Vec<String> = Vec::new();
-            for i in 0..count {
-
-            }
-
-            Ok(names)
-        }
-    }
-
-}
-
-
-
-impl <ACL>Server<ACL>
-    where ACL: FnMut(usize, usize) -> bool
-{
-    pub fn new(path: &str) -> Result<Server<ACL>, DaemonError> {
+impl Server {
+    pub fn new<T: 'static + FnMut(&String, &[String]) -> bool>(path: &str, acl: T) -> Result<Server, DaemonError> {
         info!("[daemon] creating server");
         let listener = UnixListener::bind(path)?;
 
-
-
-        Ok(Server{listener, acl: None})
+        Ok(Server{listener, acl: Box::new(acl), children: Vec::new()})
     }
 
     pub fn run(&mut self) {
@@ -116,15 +56,22 @@ impl <ACL>Server<ACL>
         for stream in self.listener.incoming() {
             match stream {
                 Ok(stream) => {
-                    let cid: c_int = stream.as_raw_fd();
-                    let (uid, gid) = get_uid_gid(cid).unwrap();
-
+                    // Fetch user and group memberships
+                    let (user, groups) = get_fd_user_groups(stream).unwrap();
                     
-                    
+                    // Run connect ACL and skip connecting if ACL denied
+                    if !(self.acl)(&user, groups.deref()) {
+                        info!("[daemon] acl denied connection to user: {}", user);
+                        continue;
+                    }
 
-                    thread::spawn(|| {
+                    // Spawn polling thread
+                    let child = thread::spawn(|| {
                         
                     });
+
+                    // Save thread handle
+                    self.children.push(child);
                 }
                 Err(err) => {
                     break;
@@ -133,12 +80,16 @@ impl <ACL>Server<ACL>
         }
     }
 
-    pub fn close(&self) -> Result<(), DaemonError>{
+    pub fn close(mut self) -> Result<(), DaemonError>{
         info!("Closing socket server");
-        // Close listener socket?
-        // self.listener.shutdown(Shutdown::Both)?;
 
-        // Close open sockets
+        // Stop listener thread
+
+        // Close listener socket?
+        //self.listener.shutdown(Shutdown::Both)?;
+
+        // Close open sockets / threads
+        let results: Vec<_> = self.children.into_iter().map(|c| c.join() ).collect();
 
         Ok(())
     }
@@ -166,7 +117,7 @@ impl Client {
         Ok(buff)
     }
 
-    pub fn close(&self) -> Result<(), DaemonError>{
+    pub fn close(mut self) -> Result<(), DaemonError>{
         info!("[daemon] closing client connection");
         self.socket.shutdown(Shutdown::Both)?;
         Ok(())
@@ -175,8 +126,15 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+    use ::{ACL, NoACL, Server};
+
     #[test]
     fn it_works() {
-        assert_eq!(2 + 2, 4);
+        let socket = format!("{}/rust-daemon.sock", env::temp_dir().to_str().unwrap());
+
+        let server = Server::new(&socket, NoACL).unwrap();
+
+        server.close().unwrap();
     }
 }
