@@ -1,0 +1,8 @@
+[package]
+name = "rust-daemon"
+version = "0.1.0"
+authors = ["Ryan Kurte <ryankurte@gmail.com>"]
+
+[dependencies]
+log = "0.4.3"
+libc = "0.2"
