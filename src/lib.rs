@@ -43,8 +43,8 @@ pub fn none_acl(_user: &String, _groups: &[String]) -> bool { true }
 pub struct Server {
     path: String,
     listener: UnixListener,
-    acl: Box<FnMut(&String, &[String]) -> bool>,
     children: Vec<JoinHandle<()>>,
+    handle: Option<JoinHandle<()>>,
 }
 
 pub struct Message<T, V> {
@@ -68,13 +68,15 @@ pub enum Event {
 }
 
 impl Server {
-    pub fn new<ACL: 'static + FnMut(&String, &[String]) -> bool>(path: &str, acl: ACL) -> Result<Server, DaemonError> {
+    pub fn new(path: &str) -> Result<Server, DaemonError> {
         info!("[daemon] creating server");
-        fs::remove_file(path)?;
+        fs::remove_file(path);
 
         let listener = UnixListener::bind(path)?;
 
-        Ok(Server{path: path.to_string(), listener, acl: Box::new(acl), children: Vec::new()})
+        let mut s = Server{path: path.to_string(), listener, children: Vec::new(), handle: None};
+
+        Ok(s)
     }
 
     pub fn run(&mut self) {
@@ -86,10 +88,10 @@ impl Server {
                     let (user, groups) = get_fd_user_groups(&s).unwrap();
                     
                     // Run connect ACL and skip connecting if ACL denied
-                    if !(self.acl)(&user, groups.deref()) {
-                        info!("[daemon] acl denied connection to user: {}", user);
-                        continue;
-                    }
+                    //if !(self.acl)(&user, groups.deref()) {
+                    //    info!("[daemon] acl denied connection to user: {}", user);
+                    //    continue;
+                    //}
 
                     // Spawn polling thread
                     let child = thread::spawn(move || {
@@ -122,7 +124,7 @@ impl Server {
         // Close open sockets / threads
         let results: Vec<_> = self.children.into_iter().map(|c| c.join() ).collect();
 
-        fs::remove_file(self.path)?;
+        fs::remove_file(self.path);
 
         Ok(())
     }
@@ -146,8 +148,8 @@ impl Client {
     }
 
     pub fn receive<'a>(&mut self, buff: &'a mut [u8]) -> Result<&'a [u8], DaemonError> {
-        self.socket.read(buff)?;
-        Ok(buff)
+        let n = self.socket.read(buff)?;
+        Ok(&buff[0..n])
     }
 
     pub fn close(mut self) -> Result<(), DaemonError>{
@@ -160,15 +162,27 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use std::env;
-    use ::{none_acl, Server};
+    use std::thread;
+    use ::{Client, Server};
 
     #[test]
     fn it_works() {
         let socket = format!("{}rust-daemon.sock", env::temp_dir().to_str().unwrap());
         println!("Socket: {}", socket);
 
-        let server = Server::new(&socket, none_acl).unwrap();
+        let mut server = Server::new(&socket).unwrap();
 
-        server.close().unwrap();
+        thread::spawn(move || {
+            server.run();
+            server.close().unwrap();
+        });
+
+        let mut client = Client::new(&socket).unwrap();
+
+        let mut buff = vec![0u8; 1024];
+        let out = "abcd1234\n";
+        client.send(out.as_bytes()).unwrap();
+        let res = client.receive(&mut buff).unwrap();
+        assert_eq!(res, out.as_bytes());
     }
 }
