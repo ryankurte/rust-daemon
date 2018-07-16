@@ -12,7 +12,7 @@ use libc::{uid_t, gid_t, c_int, getpeereid, getpwuid_r, getgrouplist};
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd};
 
 /// Fetches the user and group names for a given file descriptor
-pub fn get_fd_user_groups<FD>(fd: FD) -> Result<(String, Vec<String>), IoError> 
+pub fn get_fd_user_groups<FD>(fd: &FD) -> Result<(String, Vec<String>), IoError> 
 where FD: AsRawFd {
     let (uid, gid) = get_fd_effective_uid_gid(fd)?;
     let user = get_user_by_uid(uid).unwrap();
@@ -22,7 +22,7 @@ where FD: AsRawFd {
 
 /// Fetches the effective uid and gid for a file descriptor
 /// This is particularly useful with unix domain sockets
-fn get_fd_effective_uid_gid<FD>(fd: FD) -> Result<(u32, u32), IoError>
+fn get_fd_effective_uid_gid<FD>(fd: &FD) -> Result<(u32, u32), IoError>
 where FD: AsRawFd {
     let cid: c_int = fd.as_raw_fd();
     let mut uid: uid_t = 0;

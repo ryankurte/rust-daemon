@@ -4,12 +4,16 @@
 extern crate log;
 extern crate libc;
 extern crate users;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde;
 
 use std::io::{Write, Read};
 
 use std::io::Error as IoError;
 use std::io::ErrorKind as IoErrorKind;
 use std::ops::Deref;
+use std::fs;
 
 use std::thread;
 use std::thread::{JoinHandle};
@@ -33,31 +37,53 @@ impl From<IoError> for DaemonError {
     }
 }
 
-pub type ACL = FnMut(&String, &[String]) -> bool;
-
-pub fn NoACL(_user: &String, _groups: &[String]) -> bool { true }
+// none_acl implements an ACL that always returns true
+pub fn none_acl(_user: &String, _groups: &[String]) -> bool { true }
 
 pub struct Server {
+    path: String,
     listener: UnixListener,
-    acl: Box<ACL>,
+    acl: Box<FnMut(&String, &[String]) -> bool>,
     children: Vec<JoinHandle<()>>,
 }
 
+pub struct Message<T, V> {
+    id: T,
+    size: T,
+    data: V,
+}
+
+pub struct User {
+    id: usize,
+    name: String,
+    groups: Vec<String>,
+}
+
+pub type MessageId = usize;
+
+pub enum Event {
+    Connect(User),
+    Disconnect(User),
+    Message(User, MessageId, Vec<u8>)
+}
+
 impl Server {
-    pub fn new<T: 'static + FnMut(&String, &[String]) -> bool>(path: &str, acl: T) -> Result<Server, DaemonError> {
+    pub fn new<ACL: 'static + FnMut(&String, &[String]) -> bool>(path: &str, acl: ACL) -> Result<Server, DaemonError> {
         info!("[daemon] creating server");
+        fs::remove_file(path)?;
+
         let listener = UnixListener::bind(path)?;
 
-        Ok(Server{listener, acl: Box::new(acl), children: Vec::new()})
+        Ok(Server{path: path.to_string(), listener, acl: Box::new(acl), children: Vec::new()})
     }
 
     pub fn run(&mut self) {
         info!("[daemon] starting socket server");
         for stream in self.listener.incoming() {
             match stream {
-                Ok(stream) => {
+                Ok(mut s) => {
                     // Fetch user and group memberships
-                    let (user, groups) = get_fd_user_groups(stream).unwrap();
+                    let (user, groups) = get_fd_user_groups(&s).unwrap();
                     
                     // Run connect ACL and skip connecting if ACL denied
                     if !(self.acl)(&user, groups.deref()) {
@@ -66,14 +92,19 @@ impl Server {
                     }
 
                     // Spawn polling thread
-                    let child = thread::spawn(|| {
-                        
+                    let child = thread::spawn(move || {
+                        loop {
+                            let mut buff = [0u8; 1024];
+                            let n = s.read(&mut buff).unwrap();
+                            s.write(&buff[0..n]);
+                        }
                     });
 
                     // Save thread handle
                     self.children.push(child);
                 }
                 Err(err) => {
+                    info!("[daemon] socker listener error: {}", err);
                     break;
                 }
             }
@@ -90,6 +121,8 @@ impl Server {
 
         // Close open sockets / threads
         let results: Vec<_> = self.children.into_iter().map(|c| c.join() ).collect();
+
+        fs::remove_file(self.path)?;
 
         Ok(())
     }
@@ -127,13 +160,14 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use std::env;
-    use ::{ACL, NoACL, Server};
+    use ::{none_acl, Server};
 
     #[test]
     fn it_works() {
-        let socket = format!("{}/rust-daemon.sock", env::temp_dir().to_str().unwrap());
+        let socket = format!("{}rust-daemon.sock", env::temp_dir().to_str().unwrap());
+        println!("Socket: {}", socket);
 
-        let server = Server::new(&socket, NoACL).unwrap();
+        let server = Server::new(&socket, none_acl).unwrap();
 
         server.close().unwrap();
     }
