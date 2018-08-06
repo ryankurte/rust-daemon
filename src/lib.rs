@@ -1,188 +1,85 @@
+#![feature(extern_prelude)]
 
-
-#[macro_use]
-extern crate log;
 extern crate libc;
 extern crate users;
-#[macro_use]
-extern crate serde_derive;
+
+extern crate futures;
+
+extern crate tokio;
+extern crate tokio_uds;
+extern crate tokio_codec;
+extern crate tokio_io;
+
 extern crate serde;
+extern crate serde_json;
+//#[macro_use]
+//extern crate serde_derive;
+//extern crate tokio_serde_json;
 
-use std::io::{Write, Read};
-
-use std::io::Error as IoError;
-use std::io::ErrorKind as IoErrorKind;
-use std::ops::Deref;
-use std::fs;
-
-use std::thread;
-use std::thread::{JoinHandle};
-use std::net::Shutdown;
-
-use std::os::unix::net::{UnixStream, UnixListener};
+extern crate bytes;
+extern crate uuid;
 
 
-mod permissions;
-use permissions::get_fd_user_groups;
+pub mod client;
+pub use client::Client;
 
-#[derive(Debug)]
-pub enum DaemonError {
-    IoError(IoError),
-    GetPeerIdError(usize),
-}
+pub mod server;
+pub use server::Server;
 
-impl From<IoError> for DaemonError {
-    fn from(e: IoError) -> DaemonError {
-        return DaemonError::IoError(e);
-    }
-}
+pub mod error;
+pub use error::DaemonError;
 
-// none_acl implements an ACL that always returns true
-pub fn none_acl(_user: &String, _groups: &[String]) -> bool { true }
-
-pub struct Server {
-    path: String,
-    listener: UnixListener,
-    children: Vec<JoinHandle<()>>,
-    handle: Option<JoinHandle<()>>,
-}
-
-pub struct Message<T, V> {
-    id: T,
-    size: T,
-    data: V,
-}
-
-pub struct User {
-    id: usize,
-    name: String,
-    groups: Vec<String>,
-}
-
-pub type MessageId = usize;
-
-pub enum Event {
-    Connect(User),
-    Disconnect(User),
-    Message(User, MessageId, Vec<u8>)
-}
-
-impl Server {
-    pub fn new(path: &str) -> Result<Server, DaemonError> {
-        info!("[daemon] creating server");
-        fs::remove_file(path);
-
-        let listener = UnixListener::bind(path)?;
-
-        let mut s = Server{path: path.to_string(), listener, children: Vec::new(), handle: None};
-
-        Ok(s)
-    }
-
-    pub fn run(&mut self) {
-        info!("[daemon] starting socket server");
-        for stream in self.listener.incoming() {
-            match stream {
-                Ok(mut s) => {
-                    // Fetch user and group memberships
-                    let (user, groups) = get_fd_user_groups(&s).unwrap();
-                    
-                    // Run connect ACL and skip connecting if ACL denied
-                    //if !(self.acl)(&user, groups.deref()) {
-                    //    info!("[daemon] acl denied connection to user: {}", user);
-                    //    continue;
-                    //}
-
-                    // Spawn polling thread
-                    let child = thread::spawn(move || {
-                        loop {
-                            let mut buff = [0u8; 1024];
-                            let n = s.read(&mut buff).unwrap();
-                            s.write(&buff[0..n]);
-                        }
-                    });
-
-                    // Save thread handle
-                    self.children.push(child);
-                }
-                Err(err) => {
-                    info!("[daemon] socker listener error: {}", err);
-                    break;
-                }
-            }
-        }
-    }
-
-    pub fn close(mut self) -> Result<(), DaemonError>{
-        info!("Closing socket server");
-
-        // Stop listener thread
-
-        // Close listener socket?
-        //self.listener.shutdown(Shutdown::Both)?;
-
-        // Close open sockets / threads
-        let results: Vec<_> = self.children.into_iter().map(|c| c.join() ).collect();
-
-        fs::remove_file(self.path);
-
-        Ok(())
-    }
-}
-
-pub struct Client {
-    socket: UnixStream
-}
-
-impl Client {
-    pub fn new(path: &str) -> Result<Client, DaemonError> {
-        info!("[daemon] creating client connection");
-        let socket = UnixStream::connect(path)?;
-
-        Ok(Client{socket})
-    }
-
-    pub fn send(&mut self, data: &[u8]) -> Result<(), DaemonError> {
-        self.socket.write(data)?;
-        Ok(())
-    }
-
-    pub fn receive<'a>(&mut self, buff: &'a mut [u8]) -> Result<&'a [u8], DaemonError> {
-        let n = self.socket.read(buff)?;
-        Ok(&buff[0..n])
-    }
-
-    pub fn close(mut self) -> Result<(), DaemonError>{
-        info!("[daemon] closing client connection");
-        self.socket.shutdown(Shutdown::Both)?;
-        Ok(())
-    }
-}
+mod user;
+pub use user::User;
 
 #[cfg(test)]
 mod tests {
     use std::env;
-    use std::thread;
-    use ::{Client, Server};
+    use tokio::prelude::*;
+    use bytes::BytesMut;
+    use std::time::{Duration, Instant};
+    use tokio::runtime::current_thread::Runtime as LocalRuntime;
+    use tokio::runtime::Runtime;
+    use {Client, Server};
 
     #[test]
     fn it_works() {
+        let mut runtime = Runtime::new().unwrap();
+
         let socket = format!("{}rust-daemon.sock", env::temp_dir().to_str().unwrap());
-        println!("Socket: {}", socket);
+        println!("[TEST] Socket: {}", socket);
 
-        let mut server = Server::new(&socket).unwrap();
+        println!("[TEST] Creating server");
+        let server = Server::new(&mut runtime, &socket).unwrap();
 
-        thread::spawn(move || {
-            server.run();
-            server.close().unwrap();
-        });
+        println!("[TEST] Creating client");
+        let client = Client::new(&socket).unwrap();
 
-        let mut client = Client::new(&socket).unwrap();
+        println!("[TEST] Awaiting connect");
+        let server_handle = server.incoming().for_each(move |d| {
+            println!("server incoming: {:?}", d);
+            Ok(())
+        }).map_err(|_e| () );
+        runtime.spawn(server_handle);
 
-        let mut buff = vec![0u8; 1024];
+        let (tx, rx) = client.split();
+
+        println!("[TEST] Writing Data");
         let out = "abcd1234\n";
-        client.send(out.as_bytes()).unwrap();
-        let res = client.receive(&mut buff).unwrap();
-        assert_eq!(res, out.as_bytes());
+        tx.send(BytesMut::from(out)).wait().unwrap();
+
+        println!("[TEST] Reading Data");
+        let when = Instant::now() + Duration::from_secs(5);
+
+        let client_handle = rx.for_each(move |d| {
+            println!("client incoming: {:?}", d);
+            assert_eq!(d, out.as_bytes());
+            Ok(())
+        }).map_err(|_e| () );
+        runtime.spawn(client_handle);
+
+        assert!(false);
+
+        runtime.shutdown_now().wait().unwrap();
     }
 }
