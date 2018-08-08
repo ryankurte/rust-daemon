@@ -80,3 +80,89 @@ impl Sink for Outgoing {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{env, fs};
+    use std::time::{Duration, Instant};
+    use std::net::Shutdown;
+
+    use tokio::prelude::*;
+    use tokio::io::*;
+    use tokio::runtime::Builder;
+    use tokio::executor::thread_pool;
+    use tokio_uds::{UnixListener, UnixStream};
+    use Client;
+
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn client_ping_pong() {
+        let mut threadpool_builder = thread_pool::Builder::new();
+        threadpool_builder
+            .name_prefix("my-runtime-worker-")
+            .pool_size(4);
+        
+        // build Runtime
+        let mut runtime = Builder::new()
+            .threadpool_builder(threadpool_builder)
+            .build().unwrap();
+
+        let path = format!("{}rust-daemon4.sock", env::temp_dir().to_str().unwrap());
+        println!("[TEST] Socket: {}", path);
+
+        let listener = UnixListener::bind(&path).unwrap();;
+        let client = Client::new(&path).unwrap();
+
+        let tokio_server = listener
+            .incoming()
+            .for_each(move |socket| {
+                let (reader, writer) = socket.split();
+                let amt = copy(reader, writer);
+
+                let msg = amt.then(move |result| {
+                    match result {
+                        Ok((amt, _, _)) => println!("wrote {} bytes", amt),
+                        Err(e) => println!("error on: {}", e),
+                    }
+
+                    Ok(())
+                });
+
+                tokio::spawn(msg);
+
+                Ok(())
+            })
+            .map_err(|err| {
+                println!("[daemon server] accept error: {}", err);
+            });
+        runtime.spawn(tokio_server);
+
+        runtime.spawn(future::lazy(move ||{
+            let (mut tx, mut rx) = client.split();
+
+            println!("[TEST] Writing Data");
+            let out = "abcd1234\n";
+            tx.send(BytesMut::from(out)).wait().unwrap();
+
+            std::thread::sleep(Duration::from_secs(2));
+
+            println!("[TEST] Reading Data");
+            let client_handle = rx.for_each(move |d| {
+                println!("client incoming: {:?}", d);
+                assert_eq!(d, out.as_bytes());
+                Ok(())
+            }).map_err(|_e| () );
+            tokio::spawn(client_handle);
+
+            Ok(())
+        }));
+
+        std::thread::sleep(Duration::from_secs(2));
+
+        //runtime.shutdown_now().wait().unwrap();
+
+        let _e = fs::remove_file(path);
+
+    }
+}

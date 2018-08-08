@@ -208,8 +208,8 @@ mod tests {
             println!("[TEST] Reading Data");
             let mut resp = [0u8; 1024];
             match rx.read(&mut resp) {
-                Ok(n) => {println!("Read ok {}", n); },
-                Err(e) => {println!("Error: {}", e); },
+                Ok(n) => {println!("Read ok {}", n); assert_eq!(out.as_bytes(), &resp[..n]); },
+                Err(e) => {println!("Error: {}", e); assert!(true); },
             };
 
             Ok(())
