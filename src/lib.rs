@@ -18,6 +18,7 @@ extern crate serde_json;
 
 extern crate bytes;
 extern crate uuid;
+extern crate tempfile;
 
 
 pub mod client;
@@ -38,22 +39,31 @@ mod tests {
     use tokio::prelude::*;
     use bytes::BytesMut;
     use std::time::{Duration, Instant};
-    use tokio::runtime::current_thread::Runtime as LocalRuntime;
-    use tokio::runtime::Runtime;
+    use tokio::runtime::Builder;
+    use tokio::executor::thread_pool;
     use {Client, Server};
 
     #[test]
     fn it_works() {
-        let mut runtime = Runtime::new().unwrap();
+        let mut threadpool_builder = thread_pool::Builder::new();
+        threadpool_builder
+            .name_prefix("my-runtime-worker-")
+            .pool_size(4);
+        
+        // build Runtime
+        let mut runtime = Builder::new()
+            .threadpool_builder(threadpool_builder)
+            .build().unwrap();
+        
 
-        let socket = format!("{}rust-daemon.sock", env::temp_dir().to_str().unwrap());
-        println!("[TEST] Socket: {}", socket);
+        let path = format!("{}rust-daemon.sock", env::temp_dir().to_str().unwrap());
+        println!("[TEST] Socket path: {}", path);
 
         println!("[TEST] Creating server");
-        let server = Server::new(&mut runtime, &socket).unwrap();
+        let server = Server::new(&mut runtime, &path).unwrap();
 
         println!("[TEST] Creating client");
-        let client = Client::new(&socket).unwrap();
+        let client = Client::new(&path).unwrap();
 
         println!("[TEST] Awaiting connect");
         let server_handle = server.incoming().for_each(move |d| {
@@ -64,13 +74,12 @@ mod tests {
 
         let (tx, rx) = client.split();
 
-        println!("[TEST] Writing Data");
         let out = "abcd1234\n";
+        println!("[TEST] Writing Data");
         tx.send(BytesMut::from(out)).wait().unwrap();
 
         println!("[TEST] Reading Data");
         let when = Instant::now() + Duration::from_secs(5);
-
         let client_handle = rx.for_each(move |d| {
             println!("client incoming: {:?}", d);
             assert_eq!(d, out.as_bytes());
@@ -78,7 +87,7 @@ mod tests {
         }).map_err(|_e| () );
         runtime.spawn(client_handle);
 
-        assert!(false);
+        std::thread::sleep(Duration::from_secs(2));
 
         runtime.shutdown_now().wait().unwrap();
     }

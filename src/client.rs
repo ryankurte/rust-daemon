@@ -26,7 +26,7 @@ impl Clone for Client {
 impl Client {
     /// New creates a new client connected to the provided IPC socket
     pub fn new(path: &str) -> Result<Client, DaemonError> {
-        println!("[daemon client] creating connection");
+        println!("[daemon client] creating connection (socket: {})", path);
         // Create the socket future
         let socket = UnixStream::connect(path).wait()?;
         // Wrap to a length delimited framed socket
@@ -70,10 +70,13 @@ impl Sink for Outgoing {
     type SinkError = IoError;
 
     fn start_send(&mut self, item: Self::SinkItem) -> Result<AsyncSink<Self::SinkItem>, Self::SinkError> {
+        println!("[daemon client] start_send");
          self.inner.socket.lock().unwrap().start_send(item)
     }
 
     fn poll_complete(&mut self) -> Result<Async<()>, Self::SinkError> {
+        println!("[daemon client] poll_complete");
         self.inner.socket.lock().unwrap().poll_complete()
     }
 }
+

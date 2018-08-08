@@ -49,7 +49,7 @@ pub struct Server {
 
 impl Server {
     pub fn new(handle: &mut Runtime, path: &str) -> Result<Server, DaemonError> {
-        println!("[daemon server] creating server");
+        println!("[daemon server] creating server (socket: {})", path);
         let _res = fs::remove_file(path);
 
         // Create client rx sockets
@@ -122,9 +122,11 @@ impl Stream for Incoming {
         for c in self.inner.connections.lock().unwrap().iter_mut() {
             match c.receive.poll() {
                 Ok(Async::Ready(t)) => {
+                    println!("[daemon server] ready");
                     return Ok(Async::Ready(t));
                 }
                 Ok(Async::NotReady) => {
+                    println!("[daemon server] not ready");
                     continue;
                 }
                 Err(e) => {
@@ -134,5 +136,90 @@ impl Stream for Incoming {
         }
 
         Ok(Async::NotReady)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+    use std::time::{Duration, Instant};
+    use std::net::Shutdown;
+
+    use tokio::prelude::*;
+    use tokio::io::*;
+    use tokio::runtime::Builder;
+    use tokio::executor::thread_pool;
+    use tokio_uds::{UnixListener, UnixStream};
+
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn ping_pong() {
+        let mut threadpool_builder = thread_pool::Builder::new();
+        threadpool_builder
+            .name_prefix("my-runtime-worker-")
+            .pool_size(4);
+        
+        // build Runtime
+        let mut runtime = Builder::new()
+            .threadpool_builder(threadpool_builder)
+            .build().unwrap();
+
+        let path = format!("{}rust-daemon3.sock", env::temp_dir().to_str().unwrap());
+        println!("[TEST] Socket: {}", path);
+
+        let listener = UnixListener::bind(&path).unwrap();;
+        let client = UnixStream::connect(&path).wait().unwrap();
+
+        let tokio_server = listener
+            .incoming()
+            .for_each(move |socket| {
+                let (reader, writer) = socket.split();
+                let amt = copy(reader, writer);
+
+                let msg = amt.then(move |result| {
+                    match result {
+                        Ok((amt, _, _)) => println!("wrote {} bytes", amt),
+                        Err(e) => println!("error on: {}", e),
+                    }
+
+                    Ok(())
+                });
+
+                tokio::spawn(msg);
+
+                Ok(())
+            })
+            .map_err(|err| {
+                println!("[daemon server] accept error: {}", err);
+            });
+        runtime.spawn(tokio_server);
+
+        runtime.spawn(future::lazy(move ||{
+            let (mut rx, mut tx) = client.split();
+
+            println!("[TEST] Writing Data");
+            let out = "abcd1234\n";
+            tx.write(out.as_bytes()).unwrap();
+
+            std::thread::sleep(Duration::from_secs(2));
+
+            println!("[TEST] Reading Data");
+            let mut resp = [0u8; 1024];
+            match rx.read(&mut resp) {
+                Ok(n) => {println!("Read ok {}", n); },
+                Err(e) => {println!("Error: {}", e); },
+            };
+
+            Ok(())
+        }));
+
+        std::thread::sleep(Duration::from_secs(2));
+
+        runtime.shutdown_now().wait().unwrap();
+
+        let _e = fs::remove_file(path);
+
     }
 }
