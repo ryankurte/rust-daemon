@@ -1,12 +1,12 @@
 use std::io::Error as IoError;
 use std::io::ErrorKind as IoErrorKind;
 
-use std::ffi::{CString};
+use std::ffi::CString;
 
 use users::{get_group_by_gid, get_user_by_uid};
 
 use libc::{c_int, getgrouplist, getpeereid, gid_t, uid_t};
-use std::os::unix::io::{AsRawFd};
+use std::os::unix::io::AsRawFd;
 
 /// User object for asserting permissions
 #[derive(Debug, PartialEq, Clone)]
@@ -97,7 +97,7 @@ fn get_groups(username: &str, gid: i32) -> Result<Vec<String>, IoError> {
 mod tests {
     use user::User;
 
-    use users::{get_current_uid};
+    use users::get_current_uid;
 
     #[test]
     fn test_get_groups() {

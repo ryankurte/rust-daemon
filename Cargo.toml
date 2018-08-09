@@ -27,3 +27,7 @@ tempfile = "3.0.3"
 [[bin]]
 name = "rustd-server"
 path = "src/examples/server.rs"
+
+[[bin]]
+name = "rustd-client"
+path = "src/examples/client.rs"
