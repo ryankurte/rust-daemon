@@ -49,38 +49,26 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let mut threadpool_builder = thread_pool::Builder::new();
-        threadpool_builder
-            .name_prefix("my-runtime-worker-")
-            .pool_size(4);
+        let test = future::lazy(move || {
+            let path = format!("{}/rust-daemon.sock", env::temp_dir().to_str().unwrap());
+            println!("[TEST] Socket path: {}", path);
 
-        // build Runtime
-        let mut runtime = Builder::new()
-            .threadpool_builder(threadpool_builder)
-            .build()
-            .unwrap();
+            println!("[TEST] Creating server");
+            let server = Server::<Test, Test>::new(&path).unwrap();
 
-        let path = format!("{}rust-daemon.sock", env::temp_dir().to_str().unwrap());
-        println!("[TEST] Socket path: {}", path);
+            println!("[TEST] Awaiting connect");
+            let server_handle = server
+                .for_each(move |mut r| {
+                    let data = r.data();
+                    println!("server incoming: {:?}", data);
+                    r.send(data);
+                    Ok(())
+                }).map_err(|_e| ());
+            tokio::spawn(server_handle);
 
-        println!("[TEST] Creating server");
-        let server = Server::<Test, Test>::new(&mut runtime, &path).unwrap();
+            println!("[TEST] Creating client");
+            let client = Client::<_, Test, Test>::new(&path).unwrap();
 
-        println!("[TEST] Awaiting connect");
-        let server_handle = server
-            .for_each(move |mut r| {
-                let data = r.data();
-                println!("server incoming: {:?}", data);
-                r.send(data);
-                Ok(())
-            })
-            .map_err(|_e| ());
-        runtime.spawn(server_handle);
-
-        println!("[TEST] Creating client");
-        let client = Client::<Test, Test>::new(&path).unwrap();
-
-        runtime.spawn(future::lazy(move || {
             println!("[TEST] Writing Data");
             let out = Test {
                 text: "test text".to_owned(),
@@ -95,13 +83,14 @@ mod tests {
                     println!("client incoming: {:?}", d);
                     assert_eq!(d, out);
                     Ok(())
-                })
-                .map_err(|_e| ());
+                }).map_err(|_e| ());
             tokio::spawn(client_handle);
 
             Ok(())
-        }));
+        });
 
-        std::thread::sleep(Duration::from_secs(2));
+        //let task = Timeout::new(test, Duration::from_secs(20));
+
+        tokio::run(test);
     }
 }

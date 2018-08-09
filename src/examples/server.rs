@@ -6,9 +6,7 @@ extern crate clap;
 use clap::{App, Arg};
 
 extern crate tokio;
-use tokio::executor::thread_pool;
 use tokio::prelude::*;
-use tokio::runtime::Builder;
 
 extern crate serde;
 #[macro_use]
@@ -35,46 +33,35 @@ fn main() {
         )
         .get_matches();
 
-    let addr = matches.value_of("Socket address").unwrap();
+    let addr = matches.value_of("Socket address").unwrap().to_owned();
 
-    let mut threadpool_builder = thread_pool::Builder::new();
-    threadpool_builder.name_prefix("rustd-").pool_size(4);
+    let server = future::lazy(move || {
+        let s = Server::<Request, Response>::new(&addr).unwrap();
+        let m = Mutex::new(HashMap::<String, String>::new());
 
-    // build Runtime
-    let mut runtime = Builder::new()
-        .threadpool_builder(threadpool_builder)
-        .build()
-        .unwrap();
+        let server_handle =
+            s.for_each(move |r| {
+                println!("Request: {:?}", r.data());
+                let data = r.data();
+                match data {
+                    Request::Get(k) => match m.lock().unwrap().get(&k) {
+                        Some(v) => r.send(Response::Value(v.to_string())),
+                        None => r.send(Response::None),
+                    },
+                    Request::Set(k, v) => {
+                        m.lock().unwrap().insert(k, v.clone());
+                        r.send(Response::Value(v.to_string()))
+                    }
+                }.wait()
+                    .unwrap();
 
-    let s = Server::<Request, Response>::new(&mut runtime, addr).unwrap();
-    let m = Mutex::new(HashMap::<String, String>::new());
+                Ok(())
+            }).map_err(|_e| ());
+        tokio::spawn(server_handle);
+        Ok(())
+    });
 
-    let server_handle =
-        s.for_each(move |r| {
-            println!("Request: {:?}", r.data());
-            let data = r.data();
-            match data {
-                Request::Get(k) => match m.lock().unwrap().get(&k) {
-                    Some(v) => r.send(Response::Value(v.to_string())),
-                    None => r.send(Response::None),
-                },
-                Request::Set(k, v) => {
-                    m.lock().unwrap().insert(k, v.clone());
-                    r.send(Response::Value(v.to_string()))
-                }
-            }.wait()
-                .unwrap();
-
-            Ok(())
-        }).map_err(|_e| ());
-    runtime.spawn(server_handle);
-
-    loop {};
-
-    // Run until threads go idle (ie. never)
-    runtime.shutdown_on_idle().wait().unwrap();
+    tokio::run(server);
 
     println!("Done!");
-
-    let _ = s;
 }

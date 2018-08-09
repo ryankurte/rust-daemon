@@ -52,7 +52,7 @@ fn main() {
     };
 
     // Create client connector
-    let client = Client::<Request, Response>::new(addr).unwrap();
+    let client = Client::<_, Request, Response>::new(addr).unwrap();
     let (tx, rx) = client.split();
 
     match matches.value_of("Value") {

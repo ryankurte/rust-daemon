@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use tokio::prelude::*;
 use tokio::runtime::Runtime;
-use tokio_uds::UnixListener;
+use tokio_uds::{UnixListener, UnixStream};
 
 use serde::{Deserialize, Serialize};
 
@@ -29,7 +29,7 @@ where
     /// Create a new server with the defined Request and Response types
     /// This starts a new listening thread using the provided runtime handle
     /// and provides a Source of Requests from connected clients
-    pub fn new(handle: &mut Runtime, path: &str) -> Result<Server<REQ, RESP>, DaemonError> {
+    pub fn new(path: &str) -> Result<Server<REQ, RESP>, DaemonError> {
         println!("[daemon server] creating server (socket: {})", path);
         let _res = fs::remove_file(path);
 
@@ -49,7 +49,7 @@ where
                 // TODO: execute connect ACL
 
                 // Create connection
-                let client = Client::<RESP, REQ>::from_sock(socket);
+                let client = Client::<_, RESP, REQ>::from(socket);
                 let conn = Connection::<REQ, RESP>::new(u, client);
 
                 println!(
@@ -71,7 +71,7 @@ where
             connections,
         };
 
-        handle.spawn(tokio_server);
+        tokio::spawn(tokio_server);
 
         Ok(s)
     }
@@ -169,7 +169,7 @@ where
 struct Connection<REQ, RESP> {
     pub id: String,
     pub user: User,
-    pub client: Client<RESP, REQ>,
+    pub client: Client<UnixStream, RESP, REQ>,
 }
 
 impl<REQ, RESP> Connection<REQ, RESP>
@@ -177,7 +177,7 @@ where
     for<'de> REQ: Serialize + Deserialize<'de> + Clone + Send + 'static,
     for<'de> RESP: Serialize + Deserialize<'de> + Clone + Send + 'static,
 {
-    pub fn new(user: User, client: Client<RESP, REQ>) -> Connection<REQ, RESP> {
+    pub fn new(user: User, client: Client<UnixStream, RESP, REQ>) -> Connection<REQ, RESP> {
         Connection {
             id: Uuid::new_v4().to_string(),
             user,

@@ -12,34 +12,71 @@ use serde::{Deserialize, Serialize};
 
 use error::DaemonError;
 
-pub type Receive<T> = Arc<Mutex<ReadJson<FramedRead<ReadHalf<UnixStream>>, T>>>;
-pub type Transmit<T> = Arc<Mutex<WriteJson<FramedWrite<WriteHalf<UnixStream>>, T>>>;
+pub type Receive<T, MSG> = Arc<Mutex<ReadJson<FramedRead<ReadHalf<T>>, MSG>>>;
+pub type Transmit<T, MSG> = Arc<Mutex<WriteJson<FramedWrite<WriteHalf<T>>, MSG>>>;
+
 
 /// Client implements a client for communicating with a daemon service
 /// This connects to an IPC socket and sends and receives messages from a connected daemon
 /// This acts as a Sink for requests and a Source for responses
-#[derive(Clone)]
-pub struct Client<REQ, RESP> {
-    pub(crate) receive: Receive<RESP>,
-    pub(crate) transmit: Transmit<REQ>,
+pub struct Client<T: AsyncRead + AsyncWrite, REQ, RESP> {
+    pub(crate) receive: Receive<T, RESP>,
+    pub(crate) transmit: Transmit<T, REQ>,
 }
 
-impl<REQ, RESP> Client<REQ, RESP>
+/// Methods for UnixStream clients
+impl<REQ, RESP> Client<UnixStream, REQ, RESP>
 where
     for<'de> REQ: Serialize + Deserialize<'de> + Clone + Send + 'static,
     for<'de> RESP: Serialize + Deserialize<'de> + Clone + Send + 'static,
 {
     /// Create a new client connected to the provided unix socket
-    pub fn new(path: &str) -> Result<Client<REQ, RESP>, DaemonError> {
+    pub fn new(path: &str) -> Result<Client<UnixStream, REQ, RESP>, DaemonError> {
         println!("[daemon client] creating connection (socket: {})", path);
         // Create the socket future
         let socket = UnixStream::connect(path).wait()?;
         // Create the socket instance
-        Ok(Client::from_sock(socket))
+        Ok(Client::from(socket))
+    }
+}
+
+/// Methods for generic clients
+impl<T, REQ, RESP> Client<T, REQ, RESP>
+where
+    T: AsyncRead + AsyncWrite,
+    for<'de> REQ: Serialize + Deserialize<'de> + Clone + Send + 'static,
+    for<'de> RESP: Serialize + Deserialize<'de> + Clone + Send + 'static,
+{
+    /// Split a client into Transmit and Receive streams
+    pub fn split<'a>(&'a self) -> (Transmit<T, REQ>, Receive<T, RESP>) {
+        (self.transmit.clone(), self.receive.clone())
     }
 
+    /// Close consumes the client connector and closes the socket
+    pub fn close(self) -> Result<(), DaemonError> {
+        println!("[daemon client] closing connection");
+        Ok(())
+    }
+}
+
+/// Clone over generic client
+impl<T, REQ, RESP> Clone for Client<T, REQ, RESP> 
+where
+    T: AsyncRead + AsyncWrite,
+{
+    fn clone(&self) -> Self {
+        Client{receive: self.receive.clone(), transmit: self.transmit.clone()}
+    }
+}
+
+/// Create a client from a provided unix stream
+impl<REQ, RESP> From<UnixStream> for Client<UnixStream, REQ, RESP> 
+where
+    for<'de> REQ: Serialize + Deserialize<'de> + Clone + Send + 'static,
+    for<'de> RESP: Serialize + Deserialize<'de> + Clone + Send + 'static,
+{
     /// Create a client from an existing UnixStream socket
-    pub fn from_sock(socket: UnixStream) -> Client<REQ, RESP> {
+    fn from(socket: UnixStream) -> Client<UnixStream, REQ, RESP> {
         // Wrap to a length delimited json encoded framed socket pair
         let (receive, transmit) = socket.split();
         let receive = Arc::new(Mutex::new(ReadJson::<_, RESP>::new(FramedRead::new(
@@ -51,22 +88,12 @@ where
 
         Client { receive, transmit }
     }
-
-    /// Split a client into Transmit and Receive streams
-    pub fn split<'a>(&'a self) -> (Transmit<REQ>, Receive<RESP>) {
-        (self.transmit.clone(), self.receive.clone())
-    }
-
-    /// Close consumes the client connector and closes the socket
-    pub fn close(self) -> Result<(), DaemonError> {
-        println!("[daemon client] closing connection");
-        Ok(())
-    }
 }
 
 /// Sink implementation allows sending messages to the server
-impl<REQ, RESP> Sink for Client<REQ, RESP>
+impl<T, REQ, RESP> Sink for Client<T, REQ, RESP>
 where
+    T: AsyncRead + AsyncWrite,
     REQ: Clone + Serialize,
 {
     type SinkItem = REQ;
@@ -87,8 +114,9 @@ where
 }
 
 /// Stream implementation allows receiving messages from the server
-impl<REQ, RESP> Stream for Client<REQ, RESP>
+impl<T, REQ, RESP> Stream for Client<T, REQ, RESP>
 where
+    T: AsyncRead + AsyncWrite,
     for<'de> RESP: Clone + Deserialize<'de>,
 {
     type Item = RESP;
