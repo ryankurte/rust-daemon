@@ -28,13 +28,12 @@ tx.send(Request::Something).wait().unwrap();
 rx.map(|resp| -> Result<(), DaemonError> {
     println!("Response: {:?}", resp);
     Ok(())
-}).wait()
-    .next();
+}).wait().next();
 ```
 
 ### Server
 ```rust
-// Create server instance
+// Create server instance, this must be executed from within a tokio context
 let s = Server::<Request, Response>::new(&addr).unwrap();
 
 // Handle requests from clients
