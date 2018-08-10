@@ -6,10 +6,10 @@ This consists of a Server that handles Requests from and issues Responses to Cli
 
 ## Status
 
-[![GitHub tag](https://img.shields.io/github/tag/ryankurte/diot.svg)](https://github.com/ryankurte/diot)
-[![Build Status](https://travis-ci.com/ryankurte/diot.svg?token=s4CML2iJ2hd54vvqz5FP&branch=master)](https://travis-ci.com/ryankurte/diot)
-[![Crates.io](https://img.shields.io/crates/v/diot.svg)](https://crates.io/crates/diot)
-[![Docs.rs](https://docs.rs/diot/badge.svg)](https://docs.rs/diot)
+[![GitHub tag](https://img.shields.io/github/tag/ryankurte/daemon-core.svg)](https://github.com/ryankurte/daemon-core)
+[![Build Status](https://travis-ci.com/ryankurte/rust-daemon.svg?branch=master)](https://travis-ci.com/ryankurte/rust-daemon)
+[![Crates.io](https://img.shields.io/crates/v/daemon-core.svg)](https://crates.io/crates/daemon-core)
+[![Docs.rs](https://docs.rs/daemon-core/badge.svg)](https://docs.rs/daemon-core)
 
 
 ## Usage
