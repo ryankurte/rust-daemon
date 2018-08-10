@@ -49,7 +49,7 @@ fn main() {
         let m = Mutex::new(HashMap::<String, String>::new());
 
         let server_handle =
-            s.for_each(move |r| {
+            s.incoming().for_each(move |r| {
                 println!("Request: {:?}", r.data());
                 let data = r.data();
                 match data {

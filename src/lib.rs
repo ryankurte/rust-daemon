@@ -31,12 +31,15 @@ extern crate bytes;
 extern crate tempfile;
 extern crate uuid;
 
+/// Client implements a daemon client (ie. command line utility)
 pub mod client;
 pub use client::Client;
 
+/// Server implements a daemon server (ie. long running process)
 pub mod server;
 pub use server::Server;
 
+/// Error implements errors returned by the daemon 
 pub mod error;
 pub use error::DaemonError;
 
@@ -69,11 +72,11 @@ mod tests {
             let server = Server::<Test, Test>::new(&path).unwrap();
 
             println!("[TEST] Awaiting connect");
-            let server_handle = server
+            let server_handle = server.incoming()
                 .for_each(move |r| {
                     let data = r.data();
                     println!("server incoming: {:?}", data);
-                    r.send(data);
+                    r.send(data).wait().unwrap();
                     Ok(())
                 }).map_err(|_e| ());
             tokio::spawn(server_handle);

@@ -9,10 +9,15 @@
 use std::fs;
 use std::io::Error as IoError;
 use std::sync::{Arc, Mutex};
+use std::fmt::Debug;
+
+use futures::sync::mpsc;
 
 use tokio::prelude::*;
-use tokio::runtime::Runtime;
+use tokio::io::copy;
 use tokio_uds::{UnixListener, UnixStream};
+use tokio_io::codec::length_delimited::{FramedRead, FramedWrite};
+use tokio_serde_json::{ReadJson, WriteJson};
 
 use serde::{Deserialize, Serialize};
 
@@ -27,12 +32,13 @@ use user::User;
 pub struct Server<REQ, RESP> {
     path: String,
     connections: Arc<Mutex<Vec<Connection<REQ, RESP>>>>,
+    incoming: mpsc::UnboundedReceiver<Request<REQ, RESP>>,
 }
 
 impl<REQ, RESP> Server<REQ, RESP>
 where
-    for<'de> REQ: Serialize + Deserialize<'de> + Clone + Send + 'static,
-    for<'de> RESP: Serialize + Deserialize<'de> + Clone + Send + 'static,
+    for<'de> REQ: Serialize + Deserialize<'de> + Clone + Send + Debug + 'static,
+    for<'de> RESP: Serialize + Deserialize<'de> + Clone + Send + Debug + 'static,
 {
     /// Create a new server with the defined Request and Response types
     /// This starts a new listening thread using the provided runtime handle
@@ -45,6 +51,8 @@ where
         let listener = UnixListener::bind(path)?;
         let connections = Arc::new(Mutex::new(Vec::new()));
 
+        let (tx, rx) = mpsc::unbounded::<Request<REQ, RESP>>();
+
         // Handle incoming connections
         let client_list = connections.clone();
         let tokio_server = listener
@@ -53,12 +61,10 @@ where
                 // Fetch user info
                 let p = socket.peer_cred().unwrap();
                 let u = User::from_uid(p.uid).unwrap();
-
-                // TODO: execute connect ACL
-
-                // Create connection
+                
+                // Create client connection
                 let client = Client::<_, RESP, REQ>::from(socket);
-                let conn = Connection::<REQ, RESP>::new(u, client);
+                let conn = Connection::<REQ, RESP>::new(u, client.clone());
 
                 println!(
                     "[daemon server] new connection user: '{}' id: '{}'",
@@ -66,8 +72,22 @@ where
                 );
 
                 // Add to client list
-                client_list.lock().unwrap().push(conn);
+                client_list.lock().unwrap().push(conn.clone());
+                let incoming = tx.clone();
 
+                // Handle incoming requests
+                let rx_handle = client.for_each(move |req| {
+                    println!("[daemon server] client rx: {:?}", req);
+                    let r = Request{
+                        inner: conn.clone(),
+                        data: req,
+                    };
+                    incoming.clone().send(r).wait().unwrap();
+
+                    Ok(())
+                }).map_err(|e| panic!("error: {}", e) );
+                tokio::spawn(rx_handle);
+                
                 Ok(())
             })
             .map_err(|err| {
@@ -77,11 +97,16 @@ where
         let s = Server {
             path: path.to_string(),
             connections,
+            incoming: rx,
         };
 
         tokio::spawn(tokio_server);
 
         Ok(s)
+    }
+
+    pub fn incoming<'a>(self) -> mpsc::UnboundedReceiver<Request<REQ, RESP>> {
+        self.incoming
     }
 
     pub fn close(self) {
@@ -95,48 +120,11 @@ where
     }
 }
 
-
-
-impl<REQ, RESP> Stream for Server<REQ, RESP>
-where
-    for<'de> REQ: Clone + Deserialize<'de>,
-    RESP: Clone + Serialize,
-{
-    type Item = Request<REQ, RESP>;
-    type Error = IoError;
-
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        let mut connections = self.connections.lock().unwrap();
-        println!("[daemon server] poll receive ({} connections)", connections.len());
-        for c in connections.iter_mut() {
-            match c.client.poll() {
-                Ok(Async::Ready(t)) => {
-                    println!("[daemon server] ready");
-                    let r = Request {
-                        inner: c.clone(),
-                        request: t.unwrap(),
-                    };
-                    return Ok(Async::Ready(Some(r)));
-                }
-                Ok(Async::NotReady) => {
-                    println!("[daemon server] not ready");
-                    continue;
-                }
-                Err(e) => {
-                    println!("Connection error: {}", e);
-                }
-            }
-        }
-
-        Ok(Async::NotReady)
-    }
-}
-
 /// Request is a request from a client
 /// This contains the Request data and is a Sink for Response data
 pub struct Request<REQ, RESP> {
     inner: Connection<REQ, RESP>,
-    request: REQ,
+    data: REQ,
 }
 
 /// Allows requests to be cloned
@@ -146,7 +134,7 @@ where
 {
     // Fetch the data for a given request
     pub fn data(&self) -> REQ {
-        self.request.clone()
+        self.data.clone()
     }
 }
 
