@@ -1,4 +1,14 @@
+
+
 #![feature(extern_prelude)]
+
+/**
+ * rust-daemon
+ * Core module, re-exports client and server components
+ * 
+ * https://github.com/ryankurte/rust-daemon
+ * Copyright 2018 Ryan Kurte
+ */
 
 extern crate libc;
 extern crate users;
@@ -6,6 +16,7 @@ extern crate users;
 extern crate futures;
 
 extern crate tokio;
+extern crate tokio_core;
 extern crate tokio_codec;
 extern crate tokio_io;
 extern crate tokio_uds;
@@ -40,6 +51,7 @@ mod tests {
     use tokio::executor::thread_pool;
     use tokio::prelude::*;
     use tokio::runtime::Builder;
+    use tokio_core::reactor::Timeout;
     use {Client, Server};
 
     #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -58,7 +70,7 @@ mod tests {
 
             println!("[TEST] Awaiting connect");
             let server_handle = server
-                .for_each(move |mut r| {
+                .for_each(move |r| {
                     let data = r.data();
                     println!("server incoming: {:?}", data);
                     r.send(data);
@@ -89,7 +101,7 @@ mod tests {
             Ok(())
         });
 
-        //let task = Timeout::new(test, Duration::from_secs(20));
+        // TODO: this needs to timeout somehow
 
         tokio::run(test);
     }

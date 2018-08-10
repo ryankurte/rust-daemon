@@ -1,3 +1,12 @@
+/**
+ * rust-daemon
+ * Client example
+ * 
+ * https://github.com/ryankurte/rust-daemon
+ * Copyright 2018 Ryan Kurte
+ */
+
+
 #[macro_use]
 extern crate clap;
 use clap::{App, Arg};
@@ -9,8 +18,8 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 
-extern crate rust_daemon;
-use rust_daemon::{Client, DaemonError};
+extern crate daemon;
+use daemon::{Client, DaemonError};
 
 mod common;
 use common::{Request, Response};

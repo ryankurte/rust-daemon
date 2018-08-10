@@ -1,3 +1,12 @@
+/**
+ * rust-daemon
+ * Server example
+ * 
+ * https://github.com/ryankurte/rust-daemon
+ * Copyright 2018 Ryan Kurte
+ */
+
+
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -12,8 +21,8 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 
-extern crate rust_daemon;
-use rust_daemon::Server;
+extern crate daemon;
+use daemon::Server;
 
 mod common;
 use common::{Request, Response};

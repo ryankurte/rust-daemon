@@ -1,3 +1,11 @@
+/**
+ * rust-daemon
+ * Server implementation
+ * 
+ * https://github.com/ryankurte/rust-daemon
+ * Copyright 2018 Ryan Kurte
+ */
+
 use std::fs;
 use std::io::Error as IoError;
 use std::sync::{Arc, Mutex};

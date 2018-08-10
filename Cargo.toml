@@ -24,6 +24,7 @@ tokio-codec = "0.1.0"
 bytes = "0.4.9"
 tokio-timer = "0.2.4"
 tempfile = "3.0.3"
+tokio-core = "0.1.17"
 
 [[bin]]
 name = "rustd-server"

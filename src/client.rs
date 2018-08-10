@@ -1,3 +1,11 @@
+/**
+ * rust-daemon
+ * Client implementation
+ * 
+ * https://github.com/ryankurte/rust-daemon
+ * Copyright 2018 Ryan Kurte
+ */
+
 use std::io::Error as IoError;
 use std::sync::{Arc, Mutex};
 
@@ -12,8 +20,11 @@ use serde::{Deserialize, Serialize};
 
 use error::DaemonError;
 
-pub type Receive<T, MSG> = Arc<Mutex<ReadJson<FramedRead<ReadHalf<T>>, MSG>>>;
-pub type Transmit<T, MSG> = Arc<Mutex<WriteJson<FramedWrite<WriteHalf<T>>, MSG>>>;
+/// Receive stream type
+type Receive<T, MSG> = Arc<Mutex<ReadJson<FramedRead<ReadHalf<T>>, MSG>>>;
+
+/// Transmit frame type
+type Transmit<T, MSG> = Arc<Mutex<WriteJson<FramedWrite<WriteHalf<T>>, MSG>>>;
 
 
 /// Client implements a client for communicating with a daemon service
@@ -125,5 +136,47 @@ where
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         println!("[daemon client] poll receive");
         self.receive.lock().unwrap().poll()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::env;
+    use tokio::prelude::*;
+    use tokio_uds::{UnixListener, UnixStream};
+    use tokio_io::codec::length_delimited::Framed as LengthFramed;
+    use {Client, Server};
+
+    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+    struct Test {
+        text: String,
+    }
+
+    #[test]
+    fn client_ping_pong() {
+        let test = future::lazy(move || {
+            // Build client pair
+            let (a, b) = UnixStream::pair().unwrap();
+            let client_a = Client::<_, Test, Test>::from(a);
+            let client_b = Client::<_, Test, Test>::from(b);
+
+            // Send a message
+            let t = Test{text: "test string".to_owned()};
+            client_a.send(t.clone()).wait().unwrap();
+
+            // Receive a message
+            // TODO: this should be, receive ONE message
+            // Maybe a once + a timeout would work here?
+            let rx_handle = client_b.for_each(move |m| {
+                println!("Received message: {:?}", m);
+                assert_eq!(t, m);
+                Ok(())
+            }).map_err(|_e| ());
+            tokio::spawn(rx_handle);
+
+            Ok(())
+        }).map(|e| {});
+
+        tokio::run(test);
     }
 }
