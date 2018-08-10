@@ -41,11 +41,17 @@ impl User {
 /// Fetch groups for a given username and primary group id
 fn get_groups(username: &str, gid: gid_t) -> Result<Vec<String>, IoError> {
     unsafe {
+        #[cfg(all(unix, target_os="macos"))]
+        let mut groups: Vec<i32> = vec![0; 1024];
+        #[cfg(all(unix, not(target_os="macos")))]
         let mut groups: Vec<gid_t> = vec![0; 1024];
 
         let name = CString::new(username).unwrap();
         let mut count = groups.len() as c_int;
 
+        #[cfg(all(unix, target_os="macos"))]
+        let res = getgrouplist(name.as_ptr(), gid as i32, groups.as_mut_ptr(), &mut count);
+        #[cfg(all(unix, not(target_os="macos")))]
         let res = getgrouplist(name.as_ptr(), gid, groups.as_mut_ptr(), &mut count);
         if res < 0 {
             return Err(IoError::new(
