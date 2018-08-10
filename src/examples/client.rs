@@ -1,11 +1,10 @@
 /**
  * rust-daemon
  * Client example
- * 
+ *
  * https://github.com/ryankurte/rust-daemon
  * Copyright 2018 Ryan Kurte
  */
-
 
 #[macro_use]
 extern crate clap;
@@ -18,8 +17,8 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 
-extern crate daemon;
-use daemon::{Client, DaemonError};
+extern crate daemon_core;
+use daemon_core::{Client, DaemonError};
 
 mod common;
 use common::{Request, Response};
@@ -36,25 +35,22 @@ fn main() {
                 .help("Sets unix socket address")
                 .takes_value(true)
                 .default_value("/tmp/rustd.sock"),
-        )
-        .arg(
+        ).arg(
             Arg::with_name("Key")
                 .short("k")
                 .long("key")
                 .help("key to set / get")
                 .takes_value(true),
-        )
-        .arg(
+        ).arg(
             Arg::with_name("Value")
                 .short("v")
                 .long("value")
                 .help("value to set")
                 .takes_value(true),
-        )
-        .get_matches();
+        ).get_matches();
 
     // Parse arguments
-    let addr = matches.value_of("Socket Address").unwrap();
+    let addr = matches.value_of("Socket Address").unwrap().to_owned();
     let key = match matches.value_of("Key") {
         Some(k) => k.to_string(),
         None => panic!("--key,-k argument required"),
@@ -74,11 +70,11 @@ fn main() {
             tx.send(Request::Get(key))
         }
     }.wait()
-        .unwrap();
+    .unwrap();
 
     rx.map(|resp| -> Result<(), DaemonError> {
         println!("Response: {:?}", resp);
         Ok(())
     }).wait()
-        .next();
+    .next();
 }

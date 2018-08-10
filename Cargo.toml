@@ -1,7 +1,7 @@
 [package]
-name = "daemon"
+name = "daemon-core"
 version = "0.1.0"
-description = "A helper package for writing rust daemons with IPC based clients"
+description = "A helper package for writing unix rust daemons with IPC based clients"
 authors = ["Ryan Kurte <ryankurte@gmail.com>"]
 
 [dependencies]
@@ -22,7 +22,7 @@ tokio-uds = "0.2.0"
 tokio-serde-json = { git = "https://github.com/carllerche/tokio-serde-json" }
 tokio-codec = "0.1.0"
 bytes = "0.4.9"
-tokio-timer = "0.2.4"
+tokio-timer = "0.2.5"
 tempfile = "3.0.3"
 tokio-core = "0.1.17"
 

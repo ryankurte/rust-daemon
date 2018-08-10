@@ -1,23 +1,20 @@
+use std::fmt::Debug;
 /**
  * rust-daemon
  * Server implementation
- * 
+ *
  * https://github.com/ryankurte/rust-daemon
  * Copyright 2018 Ryan Kurte
  */
-
 use std::fs;
 use std::io::Error as IoError;
 use std::sync::{Arc, Mutex};
-use std::fmt::Debug;
 
 use futures::sync::mpsc;
 
 use tokio::prelude::*;
-use tokio::io::copy;
+use tokio::spawn;
 use tokio_uds::{UnixListener, UnixStream};
-use tokio_io::codec::length_delimited::{FramedRead, FramedWrite};
-use tokio_serde_json::{ReadJson, WriteJson};
 
 use serde::{Deserialize, Serialize};
 
@@ -43,12 +40,12 @@ where
     /// Create a new server with the defined Request and Response types
     /// This starts a new listening thread using the provided runtime handle
     /// and provides a Source of Requests from connected clients
-    pub fn new(path: &str) -> Result<Server<REQ, RESP>, DaemonError> {
-        println!("[daemon server] creating server (socket: {})", path);
-        let _res = fs::remove_file(path);
+    pub fn new(path: String) -> Result<Server<REQ, RESP>, DaemonError> {
+        trace!("[daemon server] creating server (socket: {})", path);
+        let _res = fs::remove_file(&path);
 
         // Create listener and client list
-        let listener = UnixListener::bind(path)?;
+        let listener = UnixListener::bind(&path)?;
         let connections = Arc::new(Mutex::new(Vec::new()));
 
         let (tx, rx) = mpsc::unbounded::<Request<REQ, RESP>>();
@@ -61,14 +58,15 @@ where
                 // Fetch user info
                 let p = socket.peer_cred().unwrap();
                 let u = User::from_uid(p.uid).unwrap();
-                
+
                 // Create client connection
                 let client = Client::<_, RESP, REQ>::from(socket);
                 let conn = Connection::<REQ, RESP>::new(u, client.clone());
 
-                println!(
+                trace!(
                     "[daemon server] new connection user: '{}' id: '{}'",
-                    conn.user.name, conn.id
+                    conn.user.name,
+                    conn.id
                 );
 
                 // Add to client list
@@ -76,31 +74,31 @@ where
                 let incoming = tx.clone();
 
                 // Handle incoming requests
-                let rx_handle = client.for_each(move |req| {
-                    println!("[daemon server] client rx: {:?}", req);
-                    let r = Request{
-                        inner: conn.clone(),
-                        data: req,
-                    };
-                    incoming.clone().send(r).wait().unwrap();
+                let rx_handle = client
+                    .for_each(move |req| {
+                        trace!("[daemon server] client rx: {:?}", req);
+                        let r = Request {
+                            inner: conn.clone(),
+                            data: req,
+                        };
+                        incoming.clone().send(r).wait().unwrap();
 
-                    Ok(())
-                }).map_err(|e| panic!("error: {}", e) );
-                tokio::spawn(rx_handle);
-                
+                        Ok(())
+                    }).map_err(|e| panic!("error: {}", e));
+                spawn(rx_handle);
+
                 Ok(())
-            })
-            .map_err(|err| {
-                println!("[daemon server] accept error: {}", err);
+            }).map_err(|err| {
+                trace!("[daemon server] accept error: {}", err);
             });
 
         let s = Server {
-            path: path.to_string(),
+            path: path,
             connections,
             incoming: rx,
         };
 
-        tokio::spawn(tokio_server);
+        spawn(tokio_server);
 
         Ok(s)
     }
@@ -110,13 +108,13 @@ where
     }
 
     pub fn close(self) {
-        println!("[daemon server] closing socket server");
+        trace!("[daemon server] closing socket server");
 
         // Close open sockets / threads
         let mut connections = self.connections.lock().unwrap();
         let _results: Vec<_> = connections.drain(0..).collect();
 
-        let _e = fs::remove_file(self.path);
+        let _e = fs::remove_file(&self.path);
     }
 }
 
@@ -150,12 +148,12 @@ where
         &mut self,
         item: Self::SinkItem,
     ) -> Result<AsyncSink<Self::SinkItem>, Self::SinkError> {
-        println!("[daemon request] start send");
+        trace!("[daemon request] start send");
         self.inner.client.start_send(item)
     }
 
     fn poll_complete(&mut self) -> Result<Async<()>, Self::SinkError> {
-        println!("[daemon request] send complete");
+        trace!("[daemon request] send complete");
         self.inner.client.poll_complete()
     }
 }

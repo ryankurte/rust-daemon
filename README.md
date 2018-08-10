@@ -1,10 +1,16 @@
 # Rust Daemon
 
-A library to simplify writing daemons in rust, this uses [tokio]() to establish a type-safe [json]() over [unix socket]() interface.
+A library to simplify communication with daemons in rust, this uses [tokio]() to establish a type-safe [json]() over [unix socket]() interface for client-daemon communication, and is intended to be extended with other useful daemon-writing features as they are discovered.
+
+This consists of a Server that handles Requests from and issues Responses to Clients, and a Client that issues Requests to and recieves Responses from a Server.
 
 ## Status
 
-WIP
+[![GitHub tag](https://img.shields.io/github/tag/ryankurte/diot.svg)](https://github.com/ryankurte/diot)
+[![Build Status](https://travis-ci.com/ryankurte/diot.svg?token=s4CML2iJ2hd54vvqz5FP&branch=master)](https://travis-ci.com/ryankurte/diot)
+[![Crates.io](https://img.shields.io/crates/v/diot.svg)](https://crates.io/crates/diot)
+[![Docs.rs](https://docs.rs/diot/badge.svg)](https://docs.rs/diot)
+
 
 ## Usage
 

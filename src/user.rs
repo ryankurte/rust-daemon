@@ -1,12 +1,10 @@
 /**
  * rust-daemon
  * User module for access control use
- * 
+ *
  * https://github.com/ryankurte/rust-daemon
  * Copyright 2018 Ryan Kurte
  */
-
-
 use std::io::Error as IoError;
 use std::io::ErrorKind as IoErrorKind;
 
