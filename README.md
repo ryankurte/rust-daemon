@@ -33,11 +33,11 @@ rx.map(|resp| -> Result<(), DaemonError> {
 
 ### Server
 ```rust
-// Create server instance, this must be executed from within a tokio context
-let s = Server::<Request, Response>::new(&addr).unwrap();
-
-// Handle requests from clients
 let server_handle = future::lazy(move || {
+    // Create server instance, this must be executed from within a tokio context
+    let s = Server::<Request, Response>::new(&addr).unwrap();
+
+    // Handle requests from clients
     s.incoming().unwrap().for_each(move |r| {
         println!("Request: {:?}", r.data());
         let data = r.data();
@@ -61,7 +61,7 @@ let server_handle = future::lazy(move || {
 });
 
 // Create server task
-tokio::spawn(server_handle);
+tokio::run(server_handle);
 ``
 
 
