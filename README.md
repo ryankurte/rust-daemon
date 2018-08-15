@@ -37,8 +37,8 @@ rx.map(|resp| -> Result<(), DaemonError> {
 let s = Server::<Request, Response>::new(&addr).unwrap();
 
 // Handle requests from clients
-let server_handle =
-    s.incoming*(.for_each(move |r| {
+let server_handle = future::lazy(move || {
+    s.incoming().unwrap().for_each(move |r| {
         println!("Request: {:?}", r.data());
         let data = r.data();
         match data {
@@ -50,6 +50,15 @@ let server_handle =
         }.wait().unwrap();
         Ok(())
     }).map_err(|_e| ());
+
+    // do more stuff
+    ...
+
+    // Close the server when you're done
+    s.close();
+
+    Ok(())
+});
 
 // Create server task
 tokio::spawn(server_handle);
