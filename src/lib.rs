@@ -22,7 +22,7 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 
-extern crate tokio_serde_json;
+extern crate tokio_serde_json_mirror as tokio_serde_json;
 
 #[macro_use]
 extern crate log;
