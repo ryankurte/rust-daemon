@@ -11,8 +11,6 @@ extern crate users;
 extern crate futures;
 
 extern crate tokio;
-extern crate tokio_codec;
-extern crate tokio_core;
 extern crate tokio_io;
 extern crate tokio_uds;
 extern crate tokio_timer;
@@ -28,9 +26,8 @@ extern crate tokio_serde_json;
 
 #[macro_use]
 extern crate log;
-extern crate bytes;
-extern crate tempfile;
 extern crate uuid;
+
 
 /// Client implements a daemon client (ie. command line utility)
 pub mod client;

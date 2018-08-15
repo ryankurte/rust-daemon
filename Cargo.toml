@@ -5,26 +5,20 @@ description = "A helper package for writing unix rust daemons with IPC based cli
 authors = ["Ryan Kurte <ryankurte@gmail.com>"]
 
 [dependencies]
-log = "0.4"
-users = "0.7"
 libc = "0.2"
+futures = "0.1"
+log = "0.4"
+clap = "2.32"
+users = "0.7"
+uuid = { version = "0.6", features = ["v4"] }
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0.24"
-clap = "2.32"
-futures = "0.1"
-
-mio = "0.6"
 tokio = "0.1.7"
 tokio-io = "0.1.7"
-uuid = { version = "0.6", features = ["v4"] }
 tokio-uds = "0.2.0"
 tokio-serde-json = { git = "https://github.com/carllerche/tokio-serde-json" }
-tokio-codec = "0.1.0"
-bytes = "0.4.9"
 tokio-timer = "0.2.5"
-tempfile = "3.0.3"
-tokio-core = "0.1.17"
 
 [[bin]]
 name = "rustd-server"
