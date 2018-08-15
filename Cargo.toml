@@ -17,7 +17,7 @@ serde_json = "1.0.24"
 tokio = "0.1.7"
 tokio-io = "0.1.7"
 tokio-uds = "0.2.0"
-tokio-serde-json = { path = "./deps/tokio-serde-json" }
+tokio-serde-json = { path = "./deps/tokio-serde-json", version = "0.1" }
 tokio-timer = "0.2.5"
 
 [[bin]]
