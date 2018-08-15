@@ -1,5 +1,5 @@
 [package]
-name = "daemon-core"
+name = "daemon-engine"
 version = "0.1.0"
 description = "A helper package for writing unix rust daemons with IPC based clients"
 authors = ["Ryan Kurte <ryankurte@gmail.com>"]
@@ -17,7 +17,7 @@ serde_json = "1.0.24"
 tokio = "0.1.7"
 tokio-io = "0.1.7"
 tokio-uds = "0.2.0"
-tokio-serde-json = { git = "https://github.com/carllerche/tokio-serde-json" }
+tokio-serde-json = { path = "./deps/tokio-serde-json" }
 tokio-timer = "0.2.5"
 
 [[bin]]

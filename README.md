@@ -1,23 +1,30 @@
 # Rust Daemon
 
-A library to simplify communication with daemons in rust, this uses [tokio]() to establish a type-safe [json]() over [unix socket]() interface for client-daemon communication, and is intended to be extended with other useful daemon-writing features as they are discovered.
+A library to simplify communication with daemons in rust, this uses [tokio](https://github.com/tokio-rs/tokio) and [serde](https://serde.rs/) to establish a type-safe json over unix socket interface for client-daemon communication, and is intended to be extended with other useful daemon-writing features as they are discovered.
 
-This consists of a Server that handles Requests from and issues Responses to Clients, and a Client that issues Requests to and recieves Responses from a Server.
+This consists of a Server that handles Requests from and issues Responses to Clients, and a Client that issues Requests to and receives Responses from a Server.
 
 ## Status
 
-[![GitHub tag](https://img.shields.io/github/tag/ryankurte/daemon-core.svg)](https://github.com/ryankurte/daemon-core)
+[![GitHub tag](https://img.shields.io/github/tag/ryankurte/daemon-engine.svg)](https://github.com/ryankurte/daemon-engine)
 [![Build Status](https://travis-ci.com/ryankurte/rust-daemon.svg?branch=master)](https://travis-ci.com/ryankurte/rust-daemon)
-[![Crates.io](https://img.shields.io/crates/v/daemon-core.svg)](https://crates.io/crates/daemon-core)
-[![Docs.rs](https://docs.rs/daemon-core/badge.svg)](https://docs.rs/daemon-core)
+[![Crates.io](https://img.shields.io/crates/v/daemon-engine.svg)](https://crates.io/crates/daemon-engine)
+[![Docs.rs](https://docs.rs/daemon-engine/badge.svg)](https://docs.rs/daemon-engine)
 
 
 ## Usage
 
 See [src/examples/server.rs](src/examples/server.rs) for an example server, and [src/examples/client.rs](src/examples/client.rs) for an example client.
 
+`Request` and `Response` objects must implement [serde](https://serde.rs/) `Serialize` and `Deserialize` traits, these may be implemented using [serde_derive](https://serde.rs/derive.html).
+
 ### Client
 ```rust
+extern crate daemon_engine;
+use daemon_engine::Client;
+
+...
+
 // Create client instance
 let client = Client::<_, Request, Response>::new(addr).unwrap();
 // Split RX and TX
@@ -33,6 +40,11 @@ rx.map(|resp| -> Result<(), DaemonError> {
 
 ### Server
 ```rust
+extern crate daemon_engine;
+use daemon_engine::Server;
+
+...
+
 let server_handle = future::lazy(move || {
     // Create server instance, this must be executed from within a tokio context
     let s = Server::<Request, Response>::new(&addr).unwrap();

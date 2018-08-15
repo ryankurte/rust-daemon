@@ -17,8 +17,8 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 
-extern crate daemon_core;
-use daemon_core::{Client, DaemonError};
+extern crate daemon_engine;
+use daemon_engine::{Client, DaemonError};
 
 mod common;
 use common::{Request, Response};

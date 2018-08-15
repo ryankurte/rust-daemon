@@ -1,0 +1,15 @@
+[package]
+name = "tokio-serde-json"
+version = "0.1.0"
+authors = ["Carl Lerche <me@carllerche.com>"]
+
+[dependencies]
+futures = "0.1"
+bytes = "0.4"
+tokio-serde = "0.2"
+serde = "1.0"
+serde_json = "1.0"
+
+[dev-dependencies]
+tokio-core = "0.1"
+tokio-io = "0.1"
