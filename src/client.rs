@@ -8,7 +8,6 @@
 use std::io::Error as IoError;
 use std::sync::{Arc, Mutex};
 
-use futures::sync::oneshot;
 
 use tokio::prelude::*;
 use tokio::io::{ReadHalf, WriteHalf};
@@ -32,7 +31,6 @@ type Transmit<T, MSG> = Arc<Mutex<WriteJson<FramedWrite<WriteHalf<T>>, MSG>>>;
 pub struct Client<T: AsyncRead + AsyncWrite, REQ, RESP> {
     pub(crate) receive: Receive<T, RESP>,
     pub(crate) transmit: Transmit<T, REQ>,
-    pub(crate) exit: Option<oneshot::Sender<()>>,
 }
 
 /// Methods for UnixStream clients
@@ -68,13 +66,6 @@ where
         trace!("[daemon client] closing connection");
         Ok(())
     }
-
-    /// Exit sends a signal to the exit channel if bound
-    pub(crate) fn exit(self) {
-        if let Some(c) = self.exit {
-            c.send(()).unwrap();
-        }
-    }
 }
 
 /// Clone over generic client
@@ -86,7 +77,6 @@ where
         Client {
             receive: self.receive.clone(),
             transmit: self.transmit.clone(),
-            exit: None,
         }
     }
 }
@@ -108,7 +98,7 @@ where
             transmit,
         ))));
 
-        Client { receive, transmit, exit: None }
+        Client { receive, transmit }
     }
 }
 

@@ -63,13 +63,9 @@ where
                 let u = User::from_uid(p.uid).unwrap();
 
                 // Create client connection
-                let mut client = Client::<_, RESP, REQ>::from(socket);
-
-                // Set client thread exit
+                let client = Client::<_, RESP, REQ>::from(socket);
                 let (client_exit_tx, client_exit_rx) = oneshot::channel::<()>();
-                client.exit = Some(client_exit_tx);
-
-                let conn = Connection::<REQ, RESP>::new(u, client.clone());
+                let conn = Connection::<REQ, RESP>::new(u, client.clone(), client_exit_tx);
 
                 trace!(
                     "[daemon server] new connection user: '{}' id: '{}'",
@@ -77,9 +73,11 @@ where
                     conn.id
                 );
 
+                let incoming = tx.clone();
+                let inner = conn.clone();
+
                 // Add to client list
                 client_list.lock().unwrap().push(conn.clone());
-                let incoming = tx.clone();
 
                 // Handle incoming requests
                 let rx_handle = client
@@ -137,7 +135,7 @@ where
 
         // Send exit signals to client listeners
         let mut connections = self.connections.lock().unwrap();
-        let _results: Vec<_> = connections.drain(0..).map(|c| c.client.exit() ).collect();
+        let _results: Vec<_> = connections.drain(0..).map(|c| c.exit() ).collect();
 
         // Remove daemon port
         let _e = fs::remove_file(&self.path);
@@ -190,6 +188,7 @@ struct Connection<REQ, RESP> {
     pub id: String,
     pub user: User,
     pub client: Client<UnixStream, RESP, REQ>,
+    pub exit: Arc<Mutex<Option<oneshot::Sender<()>>>>,
 }
 
 impl<REQ, RESP> Connection<REQ, RESP>
@@ -197,11 +196,19 @@ where
     for<'de> REQ: Serialize + Deserialize<'de> + Clone + Send + 'static,
     for<'de> RESP: Serialize + Deserialize<'de> + Clone + Send + 'static,
 {
-    pub fn new(user: User, client: Client<UnixStream, RESP, REQ>) -> Connection<REQ, RESP> {
+    pub fn new(user: User, client: Client<UnixStream, RESP, REQ>, exit: oneshot::Sender<()>) -> Connection<REQ, RESP> {
         Connection {
             id: Uuid::new_v4().to_string(),
             user,
             client,
+            exit: Arc::new(Mutex::new(Some(exit))),
+        }
+    }
+
+    /// Exit sends a signal to the exit channel if bound
+    pub(crate) fn exit(self) {
+        if let Some(c) = self.exit.lock().unwrap().take() {
+            c.send(()).unwrap();
         }
     }
 }
