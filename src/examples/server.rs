@@ -43,11 +43,12 @@ fn main() {
     let addr = matches.value_of("Socket address").unwrap().to_owned();
 
     let server = future::lazy(move || {
-        let s = Server::<Request, Response>::new(addr).unwrap();
+        let mut s = Server::<Request, Response>::new(addr).unwrap();
         let m = Mutex::new(HashMap::<String, String>::new());
 
         let server_handle = s
             .incoming()
+            .unwrap()
             .for_each(move |r| {
                 println!("Request: {:?}", r.data());
                 let data = r.data();

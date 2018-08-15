@@ -58,8 +58,7 @@ mod tests {
         text: String,
     }
 
-    // TODO: re-enable when exiting is a viable option I guess?
-    //#[test]
+    #[test]
     fn it_works() {
         let path = format!("{}/rust-daemon.sock", env::temp_dir().to_str().unwrap());
         println!("[TEST] Socket path: {}", path);
@@ -67,11 +66,10 @@ mod tests {
         let server_path = path.clone();
         let test = future::lazy(move || {
             println!("[TEST] Creating server");
-            let server = Server::<Test, Test>::new(server_path).unwrap();
+            let mut server = Server::<Test, Test>::new(server_path).unwrap();
 
             println!("[TEST] Awaiting connect");
-            let server_handle = server
-                .incoming()
+            let server_handle = server.incoming().unwrap()
                 .for_each(move |r| {
                     let data = r.data();
                     println!("server incoming: {:?}", data);
@@ -101,14 +99,14 @@ mod tests {
             }).wait()
             .next();
 
+            server.close();
+
             Ok(())
         }).then(|_: Result<(), ()>| -> Result<(), ()> {
             println!("[TEST] Done");
             
             Ok(())
         });
-
-        // TODO: this needs to timeout somehow / finish somehow
 
         run(test);
     }

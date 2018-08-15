@@ -11,6 +11,7 @@ use std::io::Error as IoError;
 use std::sync::{Arc, Mutex};
 
 use futures::sync::mpsc;
+use futures::sync::oneshot;
 
 use tokio::prelude::*;
 use tokio::spawn;
@@ -29,7 +30,8 @@ use user::User;
 pub struct Server<REQ, RESP> {
     path: String,
     connections: Arc<Mutex<Vec<Connection<REQ, RESP>>>>,
-    incoming: mpsc::UnboundedReceiver<Request<REQ, RESP>>,
+    incoming: Option<mpsc::UnboundedReceiver<Request<REQ, RESP>>>,
+    exit: oneshot::Sender<()>,
 }
 
 impl<REQ, RESP> Server<REQ, RESP>
@@ -49,6 +51,7 @@ where
         let connections = Arc::new(Mutex::new(Vec::new()));
 
         let (tx, rx) = mpsc::unbounded::<Request<REQ, RESP>>();
+        let (exit_tx, exit_rx) = oneshot::channel::<()>();
 
         // Handle incoming connections
         let client_list = connections.clone();
@@ -60,7 +63,12 @@ where
                 let u = User::from_uid(p.uid).unwrap();
 
                 // Create client connection
-                let client = Client::<_, RESP, REQ>::from(socket);
+                let mut client = Client::<_, RESP, REQ>::from(socket);
+
+                // Set client thread exit
+                let (client_exit_tx, client_exit_rx) = oneshot::channel::<()>();
+                client.exit = Some(client_exit_tx);
+
                 let conn = Connection::<REQ, RESP>::new(u, client.clone());
 
                 trace!(
@@ -84,18 +92,32 @@ where
                         incoming.clone().send(r).wait().unwrap();
 
                         Ok(())
-                    }).map_err(|e| panic!("error: {}", e));
+                    })
+                    .map_err(|e| panic!("error: {}", e))
+                    .select2(client_exit_rx)
+                    .then(|_| {
+                        info!("[daemon server] closing client handler");
+                        Ok(())
+                    });
+                    
                 spawn(rx_handle);
 
                 Ok(())
-            }).map_err(|err| {
-                trace!("[daemon server] accept error: {}", err);
-            });
+            })
+            .map_err(|err| {
+                error!("[daemon server] accept error: {}", err);
+            })
+            .select2(exit_rx)
+            .then(|_| {
+                info!("[daemon server] closing listener");
+                Ok(())
+            });;
 
         let s = Server {
             path: path,
             connections,
-            incoming: rx,
+            incoming: Some(rx),
+            exit: exit_tx,
         };
 
         spawn(tokio_server);
@@ -103,17 +125,21 @@ where
         Ok(s)
     }
 
-    pub fn incoming<'a>(self) -> mpsc::UnboundedReceiver<Request<REQ, RESP>> {
-        self.incoming
+    pub fn incoming(&mut self) -> Option<mpsc::UnboundedReceiver<Request<REQ, RESP>>> {
+        self.incoming.take()
     }
 
     pub fn close(self) {
         trace!("[daemon server] closing socket server");
 
-        // Close open sockets / threads
-        let mut connections = self.connections.lock().unwrap();
-        let _results: Vec<_> = connections.drain(0..).collect();
+        // Send listener exit signal
+        let _ = self.exit.send(());
 
+        // Send exit signals to client listeners
+        let mut connections = self.connections.lock().unwrap();
+        let _results: Vec<_> = connections.drain(0..).map(|c| c.client.exit() ).collect();
+
+        // Remove daemon port
         let _e = fs::remove_file(&self.path);
     }
 }
