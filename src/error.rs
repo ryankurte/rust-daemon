@@ -8,13 +8,13 @@
 use std::io::Error as IoError;
 
 #[derive(Debug)]
-pub enum DaemonError {
+pub enum Error {
     IoError(IoError),
     GetPeerIdError(usize),
 }
 
-impl From<IoError> for DaemonError {
-    fn from(e: IoError) -> DaemonError {
-        return DaemonError::IoError(e);
+impl From<IoError> for Error {
+    fn from(e: IoError) -> Error {
+        return Error::IoError(e);
     }
 }

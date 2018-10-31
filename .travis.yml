@@ -9,6 +9,10 @@ matrix:
   allow_failures:
     - rust: stable
   fast_finish: true
+install:
+  - cargo build
+script:
+  - cargo build; cargo test
 notifications:
   email:
     on_success: never
