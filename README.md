@@ -1,8 +1,14 @@
 # Rust Daemon
 
-A library to simplify communication with daemons in rust, this uses [tokio](https://github.com/tokio-rs/tokio) and [serde](https://serde.rs/) to establish a type-safe json over unix socket interface for client-daemon communication, and is intended to be extended with other useful daemon-writing features as they are discovered.
+A library to simplify communication with daemons in rust, with the goal of hiding as much of the complexity of / minimizing the effort required to use tokio as much as possible.
 
-This consists of a Server that handles Requests from and issues Responses to Clients, and a Client that issues Requests to and receives Responses from a Server.
+This consists of a higher level [server]() and [connection]() object to provide typed communication between components, implemented using [tokio](https://github.com/tokio-rs/tokio) using [codecs](https://docs.rs/tokio/0.1.12/tokio/codec/index.html) .
+
+These types objects can be created using any [`AsyncRead`](https://docs.rs/tokio/0.1.12/tokio/prelude/trait.AsyncRead.html) and [`AsyncWrite'](https://docs.rs/tokio/0.1.12/tokio/prelude/trait.AsyncWrite.html) compatible types, for example, [`TCPStream`](https://docs.rs/tokio/0.1.12/tokio/net/struct.TcpStream.html) and [`UnixStream`](https://docs.rs/tokio/0.1.12/tokio/net/struct.UnixStream.html).
+
+
+A generic [example codec](src/codecs/json.rs) is provided using [serde](https://serde.rs/) and [serde_json](https://github.com/serde-rs/json) to establish a type-safe json interface for client-daemon communication, it is intended that additional codecs will be added as they are required.
+
 
 ## Status
 
@@ -14,23 +20,27 @@ This consists of a Server that handles Requests from and issues Responses to Cli
 
 ## Usage
 
-See [src/examples/server.rs](src/examples/server.rs) for an example server, and [src/examples/client.rs](src/examples/client.rs) for an example client.
+See [src/examples/server.rs](src/examples/server.rs) and [src/examples/connection.rs](src/examples/client.rs) for an example server and client, or [tests/main.rs](tests/main.rs) for a single file example.
 
 `Request` and `Response` objects must implement [serde](https://serde.rs/) `Serialize` and `Deserialize` traits, these may be implemented using [serde_derive](https://serde.rs/derive.html).
 
 ### Client
 ```rust
 extern crate daemon_engine;
-use daemon_engine::Client;
+use daemon_engine::Connection;
 
 ...
 
 // Create client instance
-let client = Client::<_, Request, Response>::new(addr).unwrap();
+let stream = UnixStream::connect(path.clone()).wait().unwrap();
+let client = Connection::<_, JsonCodec<Test, Test, JsonError>>::new(stream);
+
 // Split RX and TX
 let (tx, rx) = client.split();
+
 // Send something (remember to .wait())
 tx.send(Request::Something).wait().unwrap();
+
 // Receive something (also remember to wait)
 rx.map(|resp| -> Result<(), DaemonError> {
     println!("Response: {:?}", resp);
@@ -40,14 +50,19 @@ rx.map(|resp| -> Result<(), DaemonError> {
 
 ### Server
 ```rust
+extern crate tokio;
+use tokio::prelude::*;
+use tokio::{run, spawn};
+
 extern crate daemon_engine;
 use daemon_engine::Server;
+use daemon_engine::codecs::json::{JsonCodec, JsonError};
 
 ...
 
 let server_handle = future::lazy(move || {
-    // Create server instance, this must be executed from within a tokio context
-    let s = Server::<Request, Response>::new(&addr).unwrap();
+    // Create server instance using the JSON codec, this must be executed from within a tokio context
+    let mut server = Server::<_, JsonCodec<Request, Response, JsonError>>::new_unix(&server_path).unwrap();
 
     // Handle requests from clients
     s.incoming().unwrap().for_each(move |r| {

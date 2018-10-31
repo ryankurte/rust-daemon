@@ -26,6 +26,7 @@ tokio-serde-json-mirror = "0.1"
 tokio-timer = "0.2.5"
 tokio-codec = "0.1.1"
 bytes = "0.4.10"
+tokio-tcp = "0.1.2"
 
 [[bin]]
 name = "rustd-server"

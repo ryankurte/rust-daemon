@@ -17,6 +17,7 @@ use tokio::prelude::*;
 extern crate tokio_io;
 extern crate tokio_codec;
 extern crate tokio_uds;
+extern crate tokio_tcp;
 extern crate tokio_timer;
 
 extern crate serde;
@@ -71,74 +72,3 @@ where
 mod user;
 pub use user::User;
 
-#[cfg(test)]
-mod tests {
-    use std::env;
-    use std::thread::sleep;
-    use std::time::{Duration};
-    use tokio::prelude::*;
-    use tokio::{run, spawn};
-    use tokio_uds::UnixStream;
-
-    use {Connection, Server};
-    use codecs::json::{JsonCodec, JsonError};
-
-
-    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-    struct Test {
-        text: String,
-    }
-
-    #[test]
-    fn it_works() {
-        let path = format!("{}/rust-daemon.sock", env::temp_dir().to_str().unwrap());
-        println!("[TEST] Socket path: {}", path);
-
-        let server_path = path.clone();
-        let test = future::lazy(move || {
-            println!("[TEST] Creating server");
-            let mut server = Server::<_, JsonCodec<Test, Test, JsonError>>::new_unix(&server_path).unwrap();
-
-            println!("[TEST] Awaiting connect");
-            let server_handle = server.incoming().unwrap()
-                .for_each(move |req| {
-                    let data = req.data();
-                    req.send(data).wait().unwrap();
-                    Ok(())
-                }).map_err(|_e| ());
-            spawn(server_handle);
-
-            println!("[TEST] Creating client");
-            let stream = UnixStream::connect(path.clone()).wait().unwrap();
-            let client = Connection::<_, JsonCodec<Test, Test, JsonError>>::new(stream);
-
-            let (tx, rx) = client.split();
-
-            println!("[TEST] Writing Data");
-            let out = Test {
-                text: "test text".to_owned(),
-            };
-            tx.send(out.clone()).wait().unwrap();
-
-            sleep(Duration::from_secs(2));
-
-            println!("[TEST] Reading Data");
-            rx.map(|d| -> Result<(), ()> {
-                println!("client incoming: {:?}", d);
-                assert_eq!(d, out);
-                Ok(())
-            }).wait()
-            .next();
-
-            server.close();
-
-            Ok(())
-        }).then(|_: Result<(), ()>| -> Result<(), ()> {
-            println!("[TEST] Done");
-            
-            Ok(())
-        });
-
-        run(test);
-    }
-}

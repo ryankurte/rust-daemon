@@ -10,6 +10,7 @@ use std::fs;
 use std::sync::{Arc, Mutex};
 use std::fmt::{Debug};
 use std::clone::{Clone};
+use std::net::SocketAddr;
 
 use futures::sync::mpsc;
 use futures::sync::mpsc::{UnboundedReceiver, UnboundedSender};
@@ -18,7 +19,9 @@ use futures::sync::oneshot;
 use tokio::prelude::*;
 use tokio::spawn;
 use tokio_codec::{Encoder, Decoder};
+
 use tokio_uds::{UnixListener, UnixStream};
+use tokio_tcp::{TcpListener, TcpStream};
 
 use connection::Connection;
 use error::Error;
@@ -44,7 +47,7 @@ where
 {
     /// Create a new connector with defined request and response message types
     /// This sets up internal resources but does not start a listener until one is provded
-    pub fn new() -> Server<T, C> {
+    fn new() -> Server<T, C> {
         // Setup internal state and communication channels
         let connections = Arc::new(Mutex::new(Vec::new()));
         let (incoming_tx, incoming_rx) = mpsc::unbounded::<Request<T, C>>();
@@ -60,12 +63,16 @@ where
     }
 
     /// Take the incoming data handle
+    /// You can then use `for_each` to iterate over received requests as in
+    /// the examples
     pub fn incoming(&mut self) -> Option<UnboundedReceiver<Request<T, C>>> {
         self.incoming_rx.lock().unwrap().take()
     }
 
     /// Bind a socket to a server
-    /// This attaches an rx handler to the server
+    /// This attaches an rx handler to the server, and can be used both for
+    /// server listener implementations as well as to support server-initialised
+    /// connections if required
     pub fn bind(&mut self, socket: T) {
         // Create new connection object
         let conn = Connection::new(socket);
@@ -84,10 +91,10 @@ where
             tx.clone().send(req).wait().unwrap();
             Ok(())
         })
-        .map_err(|e| panic!("[connection] error: {:?}", e))
+        .map_err(|e| panic!("[server] error: {:?}", e))
         .select2(exit_rx)
         .then(|_| {
-            info!("[connection] closing handler");
+            info!("[server] closing handler");
             Ok(())
         });
 
@@ -152,6 +159,50 @@ where
 
         // Create listener socket
         let socket = UnixListener::bind(&path)?;
+
+        let exit_rx = server.exit_rx.lock().unwrap().take();
+        let mut server_int = server.clone();
+
+        // Create listening thread
+        let tokio_server = socket
+            .incoming()
+            .for_each(move |s| {
+                server_int.bind(s); 
+                Ok(())
+             })
+            .map_err(|err| {
+                error!("[server] accept error: {:?}", err);
+            })
+            .select2(exit_rx)
+            .then(|_| {
+                info!("[server] closing listener");
+                Ok(())
+            });
+        spawn(tokio_server);
+
+        // Return new connector instance
+        Ok(server)
+    }
+}
+
+/// TCP server implementation
+/// This binds to a TCP socket
+impl<C> Server<TcpStream, C>
+where
+    C: Encoder + Decoder + Default + Send + 'static,
+    <C as Decoder>::Item: Clone + Send + Debug,
+    <C as Decoder>::Error: Send + Debug,
+    <C as Encoder>::Item: Clone + Send + Debug,
+    <C as Encoder>::Error: Send + Debug,
+{
+    
+    pub fn new_tcp(addr: &SocketAddr) -> Result<Server<TcpStream, C>, Error> {
+
+        // Create base server instance
+        let server = Server::new();
+
+        // Create listener socket
+        let socket = TcpListener::bind(&addr)?;
 
         let exit_rx = server.exit_rx.lock().unwrap().take();
         let mut server_int = server.clone();
