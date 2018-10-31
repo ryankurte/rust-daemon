@@ -7,7 +7,7 @@ This consists of a higher level [server]() and [connection]() object to provide 
 These types objects can be created using any [`AsyncRead`](https://docs.rs/tokio/0.1.12/tokio/prelude/trait.AsyncRead.html) and [`AsyncWrite'](https://docs.rs/tokio/0.1.12/tokio/prelude/trait.AsyncWrite.html) compatible types, for example, [`TCPStream`](https://docs.rs/tokio/0.1.12/tokio/net/struct.TcpStream.html) and [`UnixStream`](https://docs.rs/tokio/0.1.12/tokio/net/struct.UnixStream.html).
 
 
-A generic [example codec](src/codecs/json.rs) is provided using [serde](https://serde.rs/) and [serde_json](https://github.com/serde-rs/json) to establish a type-safe json interface for client-daemon communication, it is intended that additional codecs will be added as they are required.
+A generic [example codec](src/codecs/json.rs) is provided using [serde](https://serde.rs/) and [serde_json](https://github.com/serde-rs/json) to establish a type-safe json interface for client-daemon communication, when using this codec the `ENC` and `DEC` types must implement [serde](https://serde.rs/) `Serialize` and `Deserialize` traits, these may be implemented using [serde_derive](https://serde.rs/derive.html). It is intended that additional codecs will be added as they are required.
 
 
 ## Status
@@ -17,12 +17,15 @@ A generic [example codec](src/codecs/json.rs) is provided using [serde](https://
 [![Crates.io](https://img.shields.io/crates/v/daemon-engine.svg)](https://crates.io/crates/daemon-engine)
 [![Docs.rs](https://docs.rs/daemon-engine/badge.svg)](https://docs.rs/daemon-engine)
 
+[Open Issues](https://github.com/ryankurte/rust-daemon/issues)
+
 
 ## Usage
 
-See [src/examples/server.rs](src/examples/server.rs) and [src/examples/connection.rs](src/examples/client.rs) for an example server and client, or [tests/main.rs](tests/main.rs) for a single file example.
+See [src/examples/server.rs](src/examples/server.rs) and [src/examples/connection.rs](src/examples/client.rs) for an example server and client implementing a simple key-value store.
 
-`Request` and `Response` objects must implement [serde](https://serde.rs/) `Serialize` and `Deserialize` traits, these may be implemented using [serde_derive](https://serde.rs/derive.html).
+You can build these examples with `cargo build --features examples`, run the server with `./targets/debug/rustd-server` and interact using `./targets/debug/rustd-client`. `rustd-client -k KEY` fetches the value for a given key, `rustd-client -k KEY -v VALUE` sets the value of the given key, and `rustd-client --help` will display available arguments.
+
 
 ### Client
 ```rust
