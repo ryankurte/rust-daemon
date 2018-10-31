@@ -1,6 +1,6 @@
 [package]
 name = "daemon-engine"
-version = "0.1.0"
+version = "0.2.0"
 description = "A helper package for writing unix rust daemons with IPC based clients"
 authors = ["Ryan Kurte <ryankurte@gmail.com>"]
 license = "MIT / Apache-2.0"
