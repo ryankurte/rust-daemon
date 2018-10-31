@@ -9,13 +9,19 @@ extern crate libc;
 extern crate users;
 
 extern crate futures;
+extern crate bytes;
 
 extern crate tokio;
+use tokio::prelude::*;
+
 extern crate tokio_io;
+extern crate tokio_codec;
 extern crate tokio_uds;
 extern crate tokio_timer;
 
 extern crate serde;
+use serde::{Serialize, Deserialize};
+
 extern crate serde_json;
 
 #[cfg(test)]
@@ -29,17 +35,38 @@ extern crate log;
 extern crate uuid;
 
 
-/// Client implements a daemon client (ie. command line utility)
-pub mod client;
-pub use client::Client;
+/// Connection implements a network connection with a given codec
+/// This is used to implement clients (ie. for a command line utility)
+pub mod connection;
+pub use connection::Connection;
 
-/// Server implements a daemon server (ie. long running process)
+/// Server implements a network server with connection management
+/// This is used to implement daemon servers (ie. long running processes w/ network communication)
 pub mod server;
 pub use server::Server;
 
 /// Error implements errors returned by the daemon
 pub mod error;
-pub use error::DaemonError;
+pub use error::Error as DaemonError;
+
+/// Codecs implement protocol handling over connectors
+pub mod codecs;
+
+
+/// JsonClient convenience wrapper to create clients with the JSON codec
+pub type JsonClient<T, REQ, RESP> = Connection<T, codecs::json::JsonCodec<REQ, RESP, codecs::json::JsonError>>;
+
+impl <T, REQ, RESP>JsonClient<T, REQ, RESP> 
+where 
+    T: AsyncWrite + AsyncRead + Send + 'static,
+    REQ: Clone + Send + Serialize + 'static,
+    for<'de> RESP: Clone + Send + Deserialize<'de> + 'static,
+{
+    pub fn new_json(stream: T) -> JsonClient<T, REQ, RESP> {
+        Connection::<_, codecs::json::JsonCodec<REQ, RESP, codecs::json::JsonError>>::new(stream)
+    }
+}
+
 
 mod user;
 pub use user::User;
@@ -48,10 +75,14 @@ pub use user::User;
 mod tests {
     use std::env;
     use std::thread::sleep;
-    use std::time::{Duration, Instant};
+    use std::time::{Duration};
     use tokio::prelude::*;
     use tokio::{run, spawn};
-    use {Client, Server};
+    use tokio_uds::UnixStream;
+
+    use {Connection, Server};
+    use codecs::json::{JsonCodec, JsonError};
+
 
     #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
     struct Test {
@@ -66,20 +97,20 @@ mod tests {
         let server_path = path.clone();
         let test = future::lazy(move || {
             println!("[TEST] Creating server");
-            let mut server = Server::<Test, Test>::new(server_path).unwrap();
+            let mut server = Server::<_, JsonCodec<Test, Test, JsonError>>::new_unix(&server_path).unwrap();
 
             println!("[TEST] Awaiting connect");
             let server_handle = server.incoming().unwrap()
-                .for_each(move |r| {
-                    let data = r.data();
-                    println!("server incoming: {:?}", data);
-                    r.send(data).wait().unwrap();
+                .for_each(move |req| {
+                    let data = req.data();
+                    req.send(data).wait().unwrap();
                     Ok(())
                 }).map_err(|_e| ());
             spawn(server_handle);
 
             println!("[TEST] Creating client");
-            let client = Client::<_, Test, Test>::new(path.clone()).unwrap();
+            let stream = UnixStream::connect(path.clone()).wait().unwrap();
+            let client = Connection::<_, JsonCodec<Test, Test, JsonError>>::new(stream);
 
             let (tx, rx) = client.split();
 

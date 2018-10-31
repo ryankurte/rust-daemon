@@ -13,12 +13,16 @@ use clap::{App, Arg};
 extern crate tokio;
 use tokio::prelude::*;
 
+extern crate tokio_uds;
+use tokio_uds::UnixStream;
+
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 
 extern crate daemon_engine;
-use daemon_engine::{Client, DaemonError};
+use daemon_engine::{Connection, DaemonError};
+use daemon_engine::codecs::json::{JsonCodec, JsonError};
 
 mod common;
 use common::{Request, Response};
@@ -57,7 +61,8 @@ fn main() {
     };
 
     // Create client connector
-    let client = Client::<_, Request, Response>::new(addr).unwrap();
+    let socket = UnixStream::connect(&addr).wait().unwrap();
+    let client = Connection::<_, JsonCodec<Request, Response, JsonError>>::new(socket);
     let (tx, rx) = client.split();
 
     match matches.value_of("Value") {
