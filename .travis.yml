@@ -1,7 +1,4 @@
 language: rust
-rust:
-  - stable
-  - nightly
 os:
   - linux
   - osx
