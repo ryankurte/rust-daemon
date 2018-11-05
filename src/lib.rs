@@ -31,16 +31,18 @@ extern crate tokio_serde_json_mirror as tokio_serde_json;
 extern crate log;
 extern crate uuid;
 
+/// Server provides a generic server over a stream and codec
+/// This is used to implement daemon servers (ie. long running processes w/ network communication)
+pub mod server;
+pub use server::Server;
 
-/// Connection implements a network connection with a given codec
+/// Connection provides a generic connection over a stream and codec
 /// This is used to implement clients (ie. for a command line utility)
 pub mod connection;
 pub use connection::Connection;
 
-/// Server implements a network server with connection management
-/// This is used to implement daemon servers (ie. long running processes w/ network communication)
-pub mod server;
-pub use server::Server;
+/// Codecs implement protocol handling over connectors
+pub mod codecs;
 
 /// TCP implements a TCP socket server and connection
 pub mod tcp;
@@ -54,8 +56,6 @@ pub use unix::{UnixServer, UnixInfo, UnixConnection};
 pub mod error;
 pub use error::Error as DaemonError;
 
-/// Codecs implement protocol handling over connectors
-pub mod codecs;
 
 /// JsonCodec re-exports the JSON codec for convenience
 /// This is an alias of JsonCodec with default JsonError, use codecs::json::JsonCodec to specify error type manually

@@ -21,8 +21,9 @@ use tokio_codec::{Encoder, Decoder};
 use connection::Connection;
 
 
-/// Server provdides a base for building stream servers
+/// Server provides a generic base for building stream servers
 /// This is generic over T, a stream reader and writer, C, and encoder and decoder, and I, and information object
+/// You probably want to be looking at TcpServer and UnixServer implementatins
 pub struct Server<T: AsyncRead + AsyncWrite, C: Encoder + Decoder, I> {
     connections: Arc<Mutex<Vec<Connection<T, C>>>>,
     incoming_tx: Arc<Mutex<UnboundedSender<Request<T, C, I>>>>,
@@ -42,9 +43,11 @@ where
     <C as Encoder>::Item: Clone + Send + Debug,
     <C as Encoder>::Error: Send + Debug,
 {
-    /// Create a new connector with defined request and response message types
-    /// This sets up internal resources but does not start a listener until one is provded
-    pub(crate) fn new() -> Server<T, C, I> {
+    /// Create a new base server with defined request and response message types
+    /// This sets up internal resources however requires implementation to handle
+    /// creating listeners and binding connections
+    /// See TcpServer and UnixServer for examples
+    pub fn base() -> Server<T, C, I> {
         // Setup internal state and communication channels
         let connections = Arc::new(Mutex::new(Vec::new()));
         let (incoming_tx, incoming_rx) = mpsc::unbounded::<Request<T, C, I>>();
@@ -71,7 +74,7 @@ where
     /// This attaches an rx handler to the server, and can be used both for
     /// server listener implementations as well as to support server-initialised
     /// connections if required
-    pub(crate) fn bind(&mut self, info: I, socket: T) {
+    pub fn bind(&mut self, info: I, socket: T) {
         // Create new connection object
         let conn = Connection::from(socket);
 
@@ -110,7 +113,7 @@ where
 
         // Send exit signals to client listeners
         let mut connections = self.connections.lock().unwrap();
-        let _results: Vec<_> = connections.drain(..).map(|c| drop(c) ).collect();
+        let _results: Vec<_> = connections.drain(..).map(|c| c.shutdown() ).collect();
     }
 }
 

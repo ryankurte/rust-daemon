@@ -43,7 +43,7 @@ fn main() {
     let addr = matches.value_of("Socket address").unwrap().to_owned();
 
     let server = future::lazy(move || {
-        let mut s = UnixServer::<JsonCodec<Response, Request>>::new_unix(&addr).unwrap();
+        let mut s = UnixServer::<JsonCodec<Response, Request>>::new(&addr).unwrap();
         let m = Mutex::new(HashMap::<String, String>::new());
 
         let server_handle = s

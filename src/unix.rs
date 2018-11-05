@@ -24,9 +24,77 @@ use error::Error;
 use users::{User, Group, get_group_by_gid, get_user_by_uid};
 
 /// UnixServer is a Server implementation over UnixStream and UnixInfo types with a generic codec
+/// ```no_run
+/// extern crate tokio;
+/// use tokio::prelude::*;
+/// use tokio::{spawn, run};
+/// 
+/// #[macro_use]
+/// extern crate serde_derive;
+/// 
+/// extern crate daemon_engine;
+/// use daemon_engine::{UnixServer, JsonCodec};
+/// 
+/// #[derive(Debug, Clone, Serialize, Deserialize)]
+/// struct Request {}
+/// 
+/// #[derive(Debug, Clone, Serialize, Deserialize)]
+/// struct Response {}
+/// 
+/// # fn main() {
+/// 
+/// let addr = "/var/tmp/test-daemon.sock";
+/// let server = future::lazy(move || {
+///     let mut s = UnixServer::<JsonCodec<Response, Request>>::new(&addr).unwrap();
+///     let server_handle = s
+///         .incoming()
+///         .unwrap()
+///         .for_each(move |r| {
+///             println!("Request data {:?} info: {:?}", r.data(), r.info());
+///             Ok(())
+///         }).map_err(|_e| ());
+///     spawn(server_handle);
+///     Ok(())
+/// });
+/// run(server);
+/// 
+/// # }
+/// ```
 pub type UnixServer<C> = Server<UnixStream, C, UnixInfo>;
 
 /// TcpClient is a Client implementation over TcpStream
+/// ```no_run
+/// use std::net::{SocketAddr, IpAddr, Ipv4Addr};
+/// 
+/// extern crate tokio;
+/// use tokio::prelude::*;
+/// use tokio::{spawn, run};
+/// 
+/// #[macro_use]
+/// extern crate serde_derive;
+/// 
+/// extern crate daemon_engine;
+/// use daemon_engine::{UnixConnection, JsonCodec, DaemonError};
+/// 
+/// #[derive(Debug, Clone, Serialize, Deserialize)]
+/// struct Request {}
+/// 
+/// #[derive(Debug, Clone, Serialize, Deserialize)]
+/// struct Response {}
+/// 
+/// # fn main() {
+/// let addr = "/var/tmp/test-daemon.sock";
+/// let client = UnixConnection::<JsonCodec<Request, Response>>::new(&addr).unwrap();
+/// let (tx, rx) = client.split();
+/// // Send data
+/// tx.send(Request{}).wait().unwrap();
+/// // Receive data
+/// rx.map(|resp| -> Result<(), DaemonError> {
+///    println!("Response: {:?}", resp);
+///    Ok(())
+/// }).wait().next();
+/// # }
+/// ```
 pub type UnixConnection<C> = Connection<UnixStream, C>;
 
 impl <C> UnixConnection<C> 
@@ -42,6 +110,11 @@ where
         let socket = UnixStream::connect(&path).wait()?;
         // Create the socket instance
         Ok(Connection::from(socket))
+    }
+
+
+    pub fn close(self) {
+        
     }
 }
 
@@ -71,13 +144,12 @@ where
     <C as Encoder>::Item: Clone + Send + Debug,
     <C as Encoder>::Error: Send + Debug,
 {
-    
-    pub fn new_unix(path: &str) -> Result<UnixServer<C>, Error> {
+    pub fn new(path: &str) -> Result<UnixServer<C>, Error> {
         // Pre-clear socket file
         let _res = fs::remove_file(&path);
 
         // Create base server instance
-        let server = Server::new();
+        let server = Server::base();
 
         // Create listener socket
         let socket = UnixListener::bind(&path)?;
@@ -107,4 +179,9 @@ where
         // Return new connector instance
         Ok(server)
     }
+
+    pub fn shutdown(&self) {
+
+    }
 }
+

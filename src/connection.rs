@@ -12,23 +12,14 @@ use std::fmt::{Debug};
 use futures::sync::oneshot;
 
 use tokio::prelude::*;
-use tokio::io::{ReadHalf, WriteHalf};
-use tokio_codec::{Encoder, Decoder, FramedRead, FramedWrite};
-
-
-/// Receive stream type
-pub type Receive<T, D> = Arc<Mutex<FramedRead<ReadHalf<T>, D>>>;
-
-/// Transmit frame type
-pub type Transmit<T, E> = Arc<Mutex<FramedWrite<WriteHalf<T>, E>>>;
+use tokio_codec::{Encoder, Decoder, Framed};
 
 
 /// Connection type implemented on top of AsyncRead + AsyncWrite and an Encoder/Decoder
 /// This provides a simple / generic base object for managing tokio connections
 pub struct Connection<T: AsyncRead + AsyncWrite, C: Encoder + Decoder> 
 {
-    receive: Receive<T, C>,
-    transmit: Transmit<T, C>,
+    stream: Arc<Mutex<Framed<T, C>>>,
     pub(crate) exit_rx: Arc<Mutex<Option<oneshot::Receiver<()>>>>,
     pub(crate) exit_tx: Arc<Mutex<Option<oneshot::Sender<()>>>>,
 }
@@ -42,19 +33,12 @@ where
 {
     /// Create a new connection instance over an arbitrary stream
     fn from(stream: T) -> Connection<T, C> {
-        // Setup receive and transmit channels
-        let (receive, transmit) = stream.split();
-        let transmit = FramedWrite::new(transmit, C::default());
-        let receive = FramedRead::new(receive, C::default());
-
-        let receive = Arc::new(Mutex::new(receive));
-        let transmit = Arc::new(Mutex::new(transmit));
-
+        // Setup stream and exit channels
         let (exit_tx, exit_rx) = oneshot::channel::<()>();
 
         // Build connection object
         Connection{
-            receive, transmit, 
+            stream: Arc::new(Mutex::new(Framed::new(stream, C::default()))),
             exit_rx: Arc::new(Mutex::new(Some(exit_rx))),
             exit_tx: Arc::new(Mutex::new(Some(exit_tx))),
         }
@@ -70,11 +54,16 @@ where
 {
     /// Exit closes the handler task if bound
     /// note this will panic if exit has already been called
-    pub fn exit(self) {
+    pub fn shutdown(self) {
         info!("[connection] exit called");
+
+        // Send exit signal
         if let Some(c) = self.exit_tx.lock().unwrap().take() {
             c.send(()).unwrap();
         }
+
+        // Close the stream
+        self.stream.lock().unwrap().get_mut().shutdown().unwrap();
     }
 }
 
@@ -100,12 +89,12 @@ where
         item: Self::SinkItem,
     ) -> Result<AsyncSink<Self::SinkItem>, Self::SinkError> {
         trace!("[connection] start send");
-        self.transmit.lock().unwrap().start_send(item)
+        self.stream.lock().unwrap().start_send(item)
     }
 
     fn poll_complete(&mut self) -> Result<Async<()>, Self::SinkError> {
         trace!("[connection] send complete");
-        self.transmit.lock().unwrap().poll_complete()
+        self.stream.lock().unwrap().poll_complete()
     }
 }
 
@@ -120,7 +109,7 @@ where
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         trace!("[connection] poll receive");
-        self.receive.lock().unwrap().poll()
+        self.stream.lock().unwrap().poll()
     }
 }
 
@@ -133,8 +122,7 @@ where
 {
     fn clone(&self) -> Self {
         Connection {
-            receive: self.receive.clone(),
-            transmit: self.transmit.clone(),
+            stream: self.stream.clone(),
             exit_tx: self.exit_tx.clone(),
             exit_rx: self.exit_rx.clone(),
         }

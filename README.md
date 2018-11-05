@@ -2,8 +2,7 @@
 
 A library to simplify communication with daemons in rust, with the goal of hiding as much of the complexity of / minimizing the effort required to use tokio as much as possible.
 
-This consists of a higher level [server]() and [connection]() object to provide typed communication between components, implemented using [tokio](https://github.com/tokio-rs/tokio) using [codecs](https://docs.rs/tokio/0.1.12/tokio/codec/index.html). These types objects can be created using any [`AsyncRead`](https://docs.rs/tokio/0.1.12/tokio/prelude/trait.AsyncRead.html) and [`AsyncWrite`](https://docs.rs/tokio/0.1.12/tokio/prelude/trait.AsyncWrite.html) compatible types, for example, [`TCPStream`](https://docs.rs/tokio/0.1.12/tokio/net/struct.TcpStream.html) and [`UnixStream`](https://docs.rs/tokio/0.1.12/tokio/net/struct.UnixStream.html).
-
+This consists of a higher-level generic [server](src/server.rs) and [connection](src/connection.rs) object to provide typed communication between components, implemented using [tokio](https://github.com/tokio-rs/tokio) using [codecs](https://docs.rs/tokio/0.1.12/tokio/codec/index.html). This is designed to support arbitrary stream types, and both types have been implemented over [`TCPStream`](https://docs.rs/tokio/0.1.12/tokio/net/struct.TcpStream.html) and [`UnixStream`](https://docs.rs/tokio/0.1.12/tokio/net/struct.UnixStream.html) for convenience. If you find any other useful stream types to wrap, please open an issue or a PR!
 
 A generic [example codec](src/codecs/json.rs) is provided using [serde](https://serde.rs/) and [serde_json](https://github.com/serde-rs/json) to establish a type-safe json interface for client-daemon communication, when using this codec the `ENC` and `DEC` types must implement [serde](https://serde.rs/) `Serialize` and `Deserialize` traits, these may be implemented using [serde_derive](https://serde.rs/derive.html). It is intended that additional codecs will be added as they are required.
 

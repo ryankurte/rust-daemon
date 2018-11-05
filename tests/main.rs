@@ -6,141 +6,130 @@
  * Copyright 2018 Ryan Kurte
  */
 
-// These tests are disabled as they are unreliable as h*ck
+use std::env;
+use std::net::{SocketAddr, IpAddr, Ipv4Addr};
+
+extern crate tokio;
+use tokio::prelude::*;
+use tokio::{run, spawn};
+
+#[macro_use]
+extern crate serde_derive;
+
+extern crate daemon_engine;
+use daemon_engine::{UnixConnection, TcpConnection, UnixServer, TcpServer, JsonCodec};
+
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+struct Test {
+    text: String,
+}
+
+// This test is disabled as it is unreliable as heck
 // TODO: work out why and fix it
-#[cfg(e2e_tests)]
-mod tests {
-    use std::env;
-    use std::net::{SocketAddr, IpAddr, Ipv4Addr};
-    use std::thread::sleep;
-    use std::time::{Duration};
+#[test]
+#[ignore]
+fn client_server_unix() {
+    let path = format!("{}rust-daemon.sock", env::temp_dir().to_str().unwrap());
+    println!("[TEST UNIX] socket path: {}", path);
 
-    extern crate tokio;
-    use tokio::prelude::*;
-    use tokio::{run, spawn};
+    let server_path = path.clone();
+    let test = future::lazy(move || {
+        println!("[TEST UNIX] Creating server");
+        let mut server = UnixServer::<JsonCodec<Test, Test>>::new(&server_path).unwrap();
 
-    extern crate tokio_uds;
-    use tokio_uds::UnixStream;
-
-    extern crate tokio_tcp;
-    use tokio_tcp::TcpStream;
-
-    #[macro_use]
-    extern crate serde_derive;
-
-    extern crate daemon_engine;
-    use daemon_engine::{Connection, Server, JsonCodec};
-
-
-    #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-    struct Test {
-        text: String,
-    }
-
-    #[test]
-    fn client_server_unix() {
-        let path = format!("{}rust-daemon.sock", env::temp_dir().to_str().unwrap());
-        println!("[TEST UNIX] socket path: {}", path);
-
-        let server_path = path.clone();
-        let test = future::lazy(move || {
-            println!("[TEST UNIX] Creating server");
-            let mut server = Server::<_, JsonCodec<Test, Test>, _>::new_unix(&server_path).unwrap();
-
-            println!("[TEST UNIX] Awaiting connect");
-            let server_handle = server.incoming().unwrap()
-                .for_each(move |req| {
-                    let data = req.data();
-                    req.send(data).wait().unwrap();
-                    Ok(())
-                }).map_err(|_e| ());
-            spawn(server_handle);
-
-            println!("[TEST UNIX] Creating client");
-            let stream = UnixStream::connect(path.clone()).wait().unwrap();
-            let client = Connection::<_, JsonCodec<Test, Test>>::new(stream);
-
-            let (tx, rx) = client.split();
-
-            println!("[TEST UNIX] Writing Data");
-            let out = Test {
-                text: "test text".to_owned(),
-            };
-            tx.send(out.clone()).wait().unwrap();
-
-            sleep(Duration::from_secs(2));
-
-            println!("[TEST UNIX] Reading Data");
-            rx.map(|d| -> Result<(), ()> {
-                println!("[TEST UNIX] Received: {:?}", d);
-                assert_eq!(d, out);
+        println!("[TEST UNIX] Awaiting connect");
+        let server_handle = server.incoming().unwrap()
+            .for_each(move |req| {
+                let data = req.data();
+                req.send(data).wait().unwrap();
                 Ok(())
-            }).wait()
-            .next();
+            }).map_err(|_e| ());
+        spawn(server_handle);
 
-            server.close();
+        println!("[TEST UNIX] Creating client");
+        let client = UnixConnection::<JsonCodec<Test, Test>>::new(&path).unwrap();
 
+        let (tx, rx) = client.clone().split();
+
+        println!("[TEST UNIX] Writing Data");
+        let out = Test {
+            text: "test text".to_owned(),
+        };
+        tx.send(out.clone()).wait().unwrap();
+
+        println!("[TEST UNIX] Reading Data");
+        rx.map(|d| -> Result<(), ()> {
+            println!("[TEST UNIX] Received: {:?}", d);
+            assert_eq!(d, out);
             Ok(())
-        }).then(|_: Result<(), ()>| -> Result<(), ()> {
-            println!("[TEST UNIX] Done");
+        }).wait()
+        .next();
 
-            Ok(())
-        });
+        server.close();
+        client.shutdown(); 
 
-        run(test);
-    }
+        Ok(())
+    }).then(|_: Result<(), ()>| -> Result<(), ()> {
+        println!("[TEST UNIX] Done");
 
-    // These tests are disabled as they are unreliable on test infrastructure :-(
-    // TODO: work out why and fix it
-    #[test]
-    fn client_server_tcp() {
-        let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 8111);
-        println!("[TEST TCP] socket bind address: {}", socket);
+        Ok(())
+    });
 
-        let test = future::lazy(move || {
-            println!("[TEST TCP] Creating server");
-            let mut server = Server::<_, JsonCodec<Test, Test>, _>::new_tcp(&socket).unwrap();
+    run(test);
+}
 
-            println!("[TEST TCP] Awaiting connect");
-            let server_handle = server.incoming().unwrap()
-                .for_each(move |req| {
-                    let data = req.data();
-                    req.send(data).wait().unwrap();
-                    Ok(())
-                }).map_err(|_e| ());
-            spawn(server_handle);
+// These tests are disabled as they are unreliable on test infrastructure :-(
+// TODO: work out why and fix it
+#[test]
+#[ignore]
+fn client_server_tcp() {
+    let server_socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 8111);
+    let client_socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8111);
 
-            println!("[TEST TCP] Creating client");
-            let stream = TcpStream::connect(&socket.clone()).wait().unwrap();
-            let client = Connection::<_, JsonCodec<Test, Test>>::new(stream);
+    println!("[TEST TCP] socket bind address: {}", server_socket);
 
-            let (tx, rx) = client.split();
+    let test = future::lazy(move || {
+        println!("[TEST TCP] Creating server");
+        let mut server = TcpServer::<JsonCodec<Test, Test>>::new(&server_socket).unwrap();
 
-            println!("[TEST TCP] Writing Data");
-            let out = Test {
-                text: "test text".to_owned(),
-            };
-            tx.send(out.clone()).wait().unwrap();
-
-            sleep(Duration::from_secs(2));
-
-            println!("[TEST TCP] Reading Data");
-            rx.map(|d| -> Result<(), ()> {
-                println!("[TEST TCP] Received: {:?}", d);
-                assert_eq!(d, out);
+        println!("[TEST TCP] Awaiting connect");
+        let server_handle = server.incoming().unwrap()
+            .for_each(move |req| {
+                let data = req.data();
+                req.send(data).wait().unwrap();
                 Ok(())
-            }).wait()
-            .next();
+            }).map_err(|_e| ());
+        spawn(server_handle);
 
-            server.close();
+        println!("[TEST TCP] Creating client");
+        let client = TcpConnection::<JsonCodec<Test, Test>>::new(&client_socket).unwrap();
 
+        let (tx, rx) = client.clone().split();
+
+        println!("[TEST TCP] Writing Data");
+        let out = Test {
+            text: "test text".to_owned(),
+        };
+        tx.send(out.clone()).wait().unwrap();
+
+        println!("[TEST TCP] Reading Data");
+        rx.map(|d| -> Result<(), ()> {
+            println!("[TEST TCP] Received: {:?}", d);
+            assert_eq!(d, out);
             Ok(())
-        }).then(|_: Result<(), ()>| -> Result<(), ()> {
-            println!("[TEST TCP] Done");
+        }).wait()
+        .next();
 
-            Ok(())
-        });
+        client.shutdown();
+        server.close();
 
-        run(test);
-    }
+        Ok(())
+    }).then(|_: Result<(), ()>| -> Result<(), ()> {
+        println!("[TEST TCP] Done");
+
+        Ok(())
+    });
+
+    run(test);
 }

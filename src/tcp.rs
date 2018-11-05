@@ -1,6 +1,6 @@
 /**
  * rust-daemon
- * TCP Server Implementation
+ * TCP Server and Connection Implementations
  *
  * https://github.com/ryankurte/rust-daemon
  * Copyright 2018 Ryan Kurte
@@ -22,9 +22,80 @@ use error::Error;
 
 
 /// TcpServer is a Server implementation over TcpStream and TcpInfo types with a generic codec
+/// ```no_run
+/// use std::net::{SocketAddr, IpAddr, Ipv4Addr};
+/// 
+/// extern crate tokio;
+/// use tokio::prelude::*;
+/// use tokio::{spawn, run};
+/// 
+/// #[macro_use]
+/// extern crate serde_derive;
+/// 
+/// extern crate daemon_engine;
+/// use daemon_engine::{TcpServer, JsonCodec};
+/// 
+/// #[derive(Debug, Clone, Serialize, Deserialize)]
+/// struct Request {}
+/// 
+/// #[derive(Debug, Clone, Serialize, Deserialize)]
+/// struct Response {}
+/// 
+/// # fn main() {
+/// 
+/// let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 8111);
+/// let server = future::lazy(move || {
+///     let mut s = TcpServer::<JsonCodec<Response, Request>>::new(&addr).unwrap();
+///     let server_handle = s
+///         .incoming()
+///         .unwrap()
+///         .for_each(move |r| {
+///             println!("Request data {:?} info: {:?}", r.data(), r.info());
+///             Ok(())
+///         }).map_err(|_e| ());
+///     spawn(server_handle);
+///     Ok(())
+/// });
+/// run(server);
+/// 
+/// # }
+/// ```
 pub type TcpServer<C> = Server<TcpStream, C, TcpInfo>;
 
 /// TcpClient is a Client implementation over TcpStream
+/// ```no_run
+/// use std::net::{SocketAddr, IpAddr, Ipv4Addr};
+/// 
+/// extern crate tokio;
+/// use tokio::prelude::*;
+/// use tokio::{spawn, run};
+/// 
+/// #[macro_use]
+/// extern crate serde_derive;
+/// 
+/// extern crate daemon_engine;
+/// use daemon_engine::{TcpConnection, JsonCodec, DaemonError};
+/// 
+/// #[derive(Debug, Clone, Serialize, Deserialize)]
+/// struct Request {}
+/// 
+/// #[derive(Debug, Clone, Serialize, Deserialize)]
+/// struct Response {}
+/// 
+/// # fn main() {
+/// let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8111);
+/// let client = TcpConnection::<JsonCodec<Request, Response>>::new(&addr).unwrap();
+/// let (tx, rx) = client.split();
+/// // Send data
+/// tx.send(Request{}).wait().unwrap();
+/// 
+/// // Receive data
+/// rx.map(|resp| -> Result<(), DaemonError> {
+///    println!("Response: {:?}", resp);
+///    Ok(())
+/// }).wait().next();
+/// # }
+/// ```
 pub type TcpConnection<C> = Connection<TcpStream, C>;
 
 impl <C> TcpConnection<C> 
@@ -40,6 +111,11 @@ where
         let socket = TcpStream::connect(&addr).wait()?;
         // Create the socket instance
         Ok(Connection::from(socket))
+    }
+
+
+    pub fn close(self) {
+        
     }
 }
 
@@ -61,10 +137,10 @@ where
     <C as Encoder>::Error: Send + Debug,
 {
     
-    pub fn new_tcp(address: &SocketAddr) -> Result<TcpServer<C>, Error> {
+    pub fn new(address: &SocketAddr) -> Result<TcpServer<C>, Error> {
 
         // Create base server instance
-        let server = Server::new();
+        let server = Server::base();
 
         // Create listener socket
         let socket = TcpListener::bind(&address)?;
