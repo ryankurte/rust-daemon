@@ -21,9 +21,11 @@ use tokio_codec::{Encoder, Decoder};
 use connection::Connection;
 
 
-/// Server provides a generic base for building stream servers
-/// This is generic over T, a stream reader and writer, C, and encoder and decoder, and I, and information object
-/// You probably want to be looking at TcpServer and UnixServer implementatins
+/// Server provides a generic base for building stream servers.
+/// 
+/// This is generic over T, a stream reader and writer, C, and encoder and decoder, and I, and information object.
+///
+/// You probably want to be looking at TcpServer and UnixServer implementations
 pub struct Server<T: AsyncRead + AsyncWrite, C: Encoder + Decoder, I> {
     connections: Arc<Mutex<Vec<Connection<T, C>>>>,
     incoming_tx: Arc<Mutex<UnboundedSender<Request<T, C, I>>>>,
@@ -43,7 +45,8 @@ where
     <C as Encoder>::Item: Clone + Send + Debug,
     <C as Encoder>::Error: Send + Debug,
 {
-    /// Create a new base server with defined request and response message types
+    /// Create a new base server with defined request and response message types.
+    /// 
     /// This sets up internal resources however requires implementation to handle
     /// creating listeners and binding connections
     /// See TcpServer and UnixServer for examples
@@ -63,14 +66,16 @@ where
         }
     }
 
-    /// Take the incoming data handle
+    /// Take the incoming data handle.
+    /// 
     /// You can then use `for_each` to iterate over received requests as in
     /// the examples
     pub fn incoming(&mut self) -> Option<UnboundedReceiver<Request<T, C, I>>> {
         self.incoming_rx.lock().unwrap().take()
     }
 
-    /// Bind a socket to a server
+    /// Bind a socket to a server.
+    /// 
     /// This attaches an rx handler to the server, and can be used both for
     /// server listener implementations as well as to support server-initialised
     /// connections if required
@@ -103,6 +108,7 @@ where
     }
 
     /// Close the socket server
+    /// 
     /// This sends exit messages to the main task and all connected hosts
     pub fn close(self) {
         trace!("[server] closing");
@@ -118,6 +124,7 @@ where
 }
 
 /// Clone over generic connector
+/// 
 /// All instances of a given connector contain the same arc/mutex protected information
 impl<T, C, I> Clone for Server<T, C, I>
 where
@@ -142,6 +149,7 @@ where
 }
 
 /// Request is a request from a client
+/// 
 /// This contains the Request data and is a Sink for Response data
 /// Allowing message handlers to reply directly to the client
 pub struct Request<T: AsyncRead + AsyncWrite, C: Encoder + Decoder, I> {

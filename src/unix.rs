@@ -51,6 +51,7 @@ use users::{User, Group, get_group_by_gid, get_user_by_uid};
 ///         .unwrap()
 ///         .for_each(move |r| {
 ///             println!("Request data {:?} info: {:?}", r.data(), r.info());
+///             r.send(Response{}).wait().unwrap();
 ///             Ok(())
 ///         }).map_err(|_e| ());
 ///     spawn(server_handle);
@@ -62,7 +63,7 @@ use users::{User, Group, get_group_by_gid, get_user_by_uid};
 /// ```
 pub type UnixServer<C> = Server<UnixStream, C, UnixInfo>;
 
-/// TcpClient is a Client implementation over TcpStream
+/// UnixConnection is a Connection implementation over UnixStream
 /// ```no_run
 /// use std::net::{SocketAddr, IpAddr, Ipv4Addr};
 /// 
@@ -86,8 +87,10 @@ pub type UnixServer<C> = Server<UnixStream, C, UnixInfo>;
 /// let addr = "/var/tmp/test-daemon.sock";
 /// let client = UnixConnection::<JsonCodec<Request, Response>>::new(&addr).unwrap();
 /// let (tx, rx) = client.split();
+/// 
 /// // Send data
 /// tx.send(Request{}).wait().unwrap();
+/// 
 /// // Receive data
 /// rx.map(|resp| -> Result<(), DaemonError> {
 ///    println!("Response: {:?}", resp);
@@ -118,7 +121,8 @@ where
     }
 }
 
-/// UnixInfo is an information object associated with a given UnixServer connection
+/// UnixInfo is an information object associated with a given UnixServer connection.
+/// 
 /// This is passed to the server request handler to allow ACLs and connection tracking
 #[derive(Clone, Debug)]
 pub struct  UnixInfo {
@@ -135,7 +139,8 @@ impl UnixInfo {
 }
 
 /// Unix server implementation
-/// This binds to a unix domain socket
+/// 
+/// This binds to and listens on a unix domain socket
 impl<C> UnixServer<C>
 where
     C: Encoder + Decoder + Default + Send + 'static,

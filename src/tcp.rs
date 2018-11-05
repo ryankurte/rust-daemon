@@ -22,6 +22,7 @@ use error::Error;
 
 
 /// TcpServer is a Server implementation over TcpStream and TcpInfo types with a generic codec
+/// 
 /// ```no_run
 /// use std::net::{SocketAddr, IpAddr, Ipv4Addr};
 /// 
@@ -51,6 +52,7 @@ use error::Error;
 ///         .unwrap()
 ///         .for_each(move |r| {
 ///             println!("Request data {:?} info: {:?}", r.data(), r.info());
+///             r.send(Response{}).wait().unwrap();
 ///             Ok(())
 ///         }).map_err(|_e| ());
 ///     spawn(server_handle);
@@ -62,7 +64,8 @@ use error::Error;
 /// ```
 pub type TcpServer<C> = Server<TcpStream, C, TcpInfo>;
 
-/// TcpClient is a Client implementation over TcpStream
+/// TcpConnection is a Connection implementation over TcpStream
+/// 
 /// ```no_run
 /// use std::net::{SocketAddr, IpAddr, Ipv4Addr};
 /// 
@@ -119,15 +122,14 @@ where
     }
 }
 
-/// TcpInfo is an information object associated with a given TcpServer connection
+/// TcpInfo is an information object associated with a given TcpServer connection.
 /// This is passed to the server request handler to allow ACLs and connection tracking
 #[derive(Clone, Debug)]
 pub struct TcpInfo {
     pub address: SocketAddr,
 }
 
-/// TCP server implementation
-/// This binds to a TCP socket
+/// TCP server implementation.
 impl<C> TcpServer<C>
 where
     C: Encoder + Decoder + Default + Send + 'static,
