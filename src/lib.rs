@@ -12,8 +12,6 @@ extern crate futures;
 extern crate bytes;
 
 extern crate tokio;
-use tokio::prelude::*;
-
 extern crate tokio_io;
 extern crate tokio_codec;
 extern crate tokio_uds;
@@ -21,8 +19,6 @@ extern crate tokio_tcp;
 extern crate tokio_timer;
 
 extern crate serde;
-use serde::{Serialize, Deserialize};
-
 extern crate serde_json;
 
 #[cfg(test)]
@@ -46,6 +42,14 @@ pub use connection::Connection;
 pub mod server;
 pub use server::Server;
 
+/// TCP implements a TCP socket server and connection
+pub mod tcp;
+pub use tcp::{TcpServer, TcpInfo, TcpConnection};
+
+/// Unix implements a Unix socket server and connection
+pub mod unix;
+pub use unix::{UnixServer, UnixInfo, UnixConnection};
+
 /// Error implements errors returned by the daemon
 pub mod error;
 pub use error::Error as DaemonError;
@@ -53,22 +57,7 @@ pub use error::Error as DaemonError;
 /// Codecs implement protocol handling over connectors
 pub mod codecs;
 
-
-/// JsonClient convenience wrapper to create clients with the JSON codec
-pub type JsonClient<T, REQ, RESP> = Connection<T, codecs::json::JsonCodec<REQ, RESP, codecs::json::JsonError>>;
-
-impl <T, REQ, RESP>JsonClient<T, REQ, RESP> 
-where 
-    T: AsyncWrite + AsyncRead + Send + 'static,
-    REQ: Clone + Send + Serialize + 'static,
-    for<'de> RESP: Clone + Send + Deserialize<'de> + 'static,
-{
-    pub fn new_json(stream: T) -> JsonClient<T, REQ, RESP> {
-        Connection::<_, codecs::json::JsonCodec<REQ, RESP, codecs::json::JsonError>>::new(stream)
-    }
-}
-
-
-mod user;
-pub use user::User;
+/// JsonCodec re-exports the JSON codec for convenience
+/// This is an alias of JsonCodec with default JsonError, use codecs::json::JsonCodec to specify error type manually
+pub type JsonCodec<REQ, RESP> = codecs::json::JsonCodec<REQ, RESP, codecs::json::JsonError>;
 

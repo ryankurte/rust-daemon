@@ -21,8 +21,7 @@ extern crate serde;
 extern crate serde_derive;
 
 extern crate daemon_engine;
-use daemon_engine::Server;
-use daemon_engine::codecs::json::{JsonCodec, JsonError};
+use daemon_engine::{Server, JsonCodec};
 
 mod common;
 use common::{Request, Response};
@@ -44,7 +43,7 @@ fn main() {
     let addr = matches.value_of("Socket address").unwrap().to_owned();
 
     let server = future::lazy(move || {
-        let mut s = Server::<_, JsonCodec<Response, Request, JsonError>>::new_unix(&addr).unwrap();
+        let mut s = UnixServer::<JsonCodec<Response, Request>>::new_unix(&addr).unwrap();
         let m = Mutex::new(HashMap::<String, String>::new());
 
         let server_handle = s

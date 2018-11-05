@@ -12,12 +12,9 @@ use std::fmt::{Debug};
 use futures::sync::oneshot;
 
 use tokio::prelude::*;
-
 use tokio::io::{ReadHalf, WriteHalf};
 use tokio_codec::{Encoder, Decoder, FramedRead, FramedWrite};
 
-use tokio_uds::UnixStream;
-use crate::error::Error;
 
 /// Receive stream type
 pub type Receive<T, D> = Arc<Mutex<FramedRead<ReadHalf<T>, D>>>;
@@ -36,7 +33,7 @@ pub struct Connection<T: AsyncRead + AsyncWrite, C: Encoder + Decoder>
     pub(crate) exit_tx: Arc<Mutex<Option<oneshot::Sender<()>>>>,
 }
 
-impl <T, C>Connection<T, C>
+impl <T, C> From<T> for Connection<T, C>
 where 
     T: AsyncWrite + AsyncRead + Send + 'static,
     C: Encoder + Decoder + Default + Send + 'static,
@@ -44,7 +41,7 @@ where
     <C as Decoder>::Error: Send + Debug,
 {
     /// Create a new connection instance over an arbitrary stream
-    pub fn new(stream: T) -> Connection<T, C> {
+    fn from(stream: T) -> Connection<T, C> {
         // Setup receive and transmit channels
         let (receive, transmit) = stream.split();
         let transmit = FramedWrite::new(transmit, C::default());
@@ -62,16 +59,15 @@ where
             exit_tx: Arc::new(Mutex::new(Some(exit_tx))),
         }
     }
+}
 
-    /// Create a new client connected to the provided unix socket
-    pub fn new_unix(path: &str) -> Result<Connection<UnixStream, C>, Error> {
-        trace!("[connector] creating connection (socket: {})", path);
-        // Create the socket future
-        let socket = UnixStream::connect(&path).wait()?;
-        // Create the socket instance
-        Ok(Connection::new(socket))
-    }
-
+impl <T, C>Connection<T, C>
+where 
+    T: AsyncWrite + AsyncRead + Send + 'static,
+    C: Encoder + Decoder + Default + Send + 'static,
+    <C as Decoder>::Item: Send,
+    <C as Decoder>::Error: Send + Debug,
+{
     /// Exit closes the handler task if bound
     /// note this will panic if exit has already been called
     pub fn exit(self) {
@@ -88,6 +84,7 @@ where
     T: AsyncWrite + AsyncRead,
     C: Encoder + Decoder + Default, 
 {}
+
 
 /// Sink implementation allows sending messages over a connection
 impl<T, C> Sink for Connection<T, C>
@@ -192,8 +189,8 @@ mod tests {
         let test = future::lazy(move || {
             // Build client pair
             let (a, b) = UnixStream::pair().unwrap();
-            let client_a = Connection::<UnixStream, TestCodec>::new(a);
-            let client_b = Connection::<UnixStream, TestCodec>::new(b);
+            let client_a = Connection::<UnixStream, TestCodec>::from(a);
+            let client_b = Connection::<UnixStream, TestCodec>::from(b);
 
             // Send a message
             let t = "test string".to_owned();

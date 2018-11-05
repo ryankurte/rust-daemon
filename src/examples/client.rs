@@ -21,8 +21,7 @@ extern crate serde;
 extern crate serde_derive;
 
 extern crate daemon_engine;
-use daemon_engine::{Connection, DaemonError};
-use daemon_engine::codecs::json::{JsonCodec, JsonError};
+use daemon_engine::{Connection, DaemonError, JsonCodec};
 
 mod common;
 use common::{Request, Response};
@@ -61,8 +60,7 @@ fn main() {
     };
 
     // Create client connector
-    let socket = UnixStream::connect(&addr).wait().unwrap();
-    let client = Connection::<_, JsonCodec<Request, Response, JsonError>>::new(socket);
+    let client = UnixConnection::<JsonCodec<Request, Response>>::new(&addr);
     let (tx, rx) = client.split();
 
     match matches.value_of("Value") {
