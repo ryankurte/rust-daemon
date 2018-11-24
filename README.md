@@ -9,7 +9,7 @@ A generic [example codec](src/codecs/json.rs) is provided using [serde](https://
 
 ## Status
 
-[![GitHub tag](https://img.shields.io/github/tag/ryankurte/daemon-engine.svg)](https://github.com/ryankurte/daemon-engine)
+[![GitHub tag](https://img.shields.io/github/tag/ryankurte/rust-daemon.svg)](https://github.com/ryankurte/rust-daemon)
 [![Build Status](https://travis-ci.com/ryankurte/rust-daemon.svg?branch=master)](https://travis-ci.com/ryankurte/rust-daemon)
 [![Crates.io](https://img.shields.io/crates/v/daemon-engine.svg)](https://crates.io/crates/daemon-engine)
 [![Docs.rs](https://docs.rs/daemon-engine/badge.svg)](https://docs.rs/daemon-engine)
