@@ -2,7 +2,7 @@
 name = "daemon-engine"
 version = "0.3.1"
 documentation = "https://docs.rs/daemon-engine/"
-repository = "https://github.com/rust-daemon"
+repository = "https://github.com/ryankurte/rust-daemon"
 description = "A helper package for writing unix rust daemons with IPC based clients"
 authors = ["Ryan Kurte <ryankurte@gmail.com>"]
 license = "MIT / Apache-2.0"
