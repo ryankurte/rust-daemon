@@ -61,7 +61,7 @@ pub use tcp::{TcpServer, TcpInfo, TcpConnection};
 /// UDP implements a UDP socket connection
 /// As UDP is connection-less, no server is required
 pub mod udp;
-//pub use udp::{UdpInfo};
+pub use udp::{UdpConnection, UdpInfo};
 
 /// Unix implements a Unix socket server and connection
 pub mod unix;
