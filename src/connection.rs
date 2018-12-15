@@ -17,40 +17,40 @@ use tokio_codec::{Encoder, Decoder, Framed};
 
 /// Connection type implemented on top of AsyncRead + AsyncWrite and an Encoder/Decoder
 /// This provides a simple / generic base object for managing tokio connections
-pub struct Connection<T: AsyncRead + AsyncWrite, C: Encoder + Decoder> 
+pub struct Connection<T: AsyncRead + AsyncWrite, CODEC: Encoder + Decoder> 
 {
-    stream: Arc<Mutex<Framed<T, C>>>,
+    stream: Arc<Mutex<Framed<T, CODEC>>>,
     pub(crate) exit_rx: Arc<Mutex<Option<oneshot::Receiver<()>>>>,
     pub(crate) exit_tx: Arc<Mutex<Option<oneshot::Sender<()>>>>,
 }
 
-impl <T, C> From<T> for Connection<T, C>
+impl <T, CODEC> From<T> for Connection<T, CODEC>
 where 
     T: AsyncWrite + AsyncRead + Send + 'static,
-    C: Encoder + Decoder + Default + Send + 'static,
-    <C as Decoder>::Item: Send,
-    <C as Decoder>::Error: Send + Debug,
+    CODEC: Encoder + Decoder + Default + Send + 'static,
+    <CODEC as Decoder>::Item: Send,
+    <CODEC as Decoder>::Error: Send + Debug,
 {
     /// Create a new connection instance over an arbitrary stream
-    fn from(stream: T) -> Connection<T, C> {
+    fn from(stream: T) -> Connection<T, CODEC> {
         // Setup stream and exit channels
         let (exit_tx, exit_rx) = oneshot::channel::<()>();
 
         // Build connection object
         Connection{
-            stream: Arc::new(Mutex::new(Framed::new(stream, C::default()))),
+            stream: Arc::new(Mutex::new(Framed::new(stream, CODEC::default()))),
             exit_rx: Arc::new(Mutex::new(Some(exit_rx))),
             exit_tx: Arc::new(Mutex::new(Some(exit_tx))),
         }
     }
 }
 
-impl <T, C>Connection<T, C>
+impl <T, CODEC>Connection<T, CODEC>
 where 
     T: AsyncWrite + AsyncRead + Send + 'static,
-    C: Encoder + Decoder + Default + Send + 'static,
-    <C as Decoder>::Item: Send,
-    <C as Decoder>::Error: Send + Debug,
+    CODEC: Encoder + Decoder + Default + Send + 'static,
+    <CODEC as Decoder>::Item: Send,
+    <CODEC as Decoder>::Error: Send + Debug,
 {
     /// Exit closes the handler task if bound
     /// note this will panic if exit has already been called
@@ -68,21 +68,21 @@ where
 }
 
 /// Blank send
-unsafe impl<T, C> Send for Connection<T, C> 
+unsafe impl<T, CODEC> Send for Connection<T, CODEC> 
 where
     T: AsyncWrite + AsyncRead,
-    C: Encoder + Decoder + Default, 
+    CODEC: Encoder + Decoder + Default, 
 {}
 
 
 /// Sink implementation allows sending messages over a connection
-impl<T, C> Sink for Connection<T, C>
+impl<T, CODEC> Sink for Connection<T, CODEC>
 where
     T: AsyncWrite + AsyncRead,
-    C: Encoder + Decoder + Default, 
+    CODEC: Encoder + Decoder + Default, 
 {
-    type SinkItem = <C as tokio_codec::Encoder>::Item;
-    type SinkError = <C as tokio_codec::Encoder>::Error;
+    type SinkItem = <CODEC as tokio_codec::Encoder>::Item;
+    type SinkError = <CODEC as tokio_codec::Encoder>::Error;
 
     fn start_send(
         &mut self,
@@ -99,13 +99,13 @@ where
 }
 
 /// Stream implementation allows receiving messages from a connection
-impl<T, C> Stream for Connection<T, C>
+impl<T, CODEC> Stream for Connection<T, CODEC>
 where
     T: AsyncWrite + AsyncRead,
-    C: Encoder + Decoder + Default, 
+    CODEC: Encoder + Decoder + Default, 
 {
-    type Item = <C as tokio_codec::Decoder>::Item;
-    type Error = <C as tokio_codec::Decoder>::Error;
+    type Item = <CODEC as tokio_codec::Decoder>::Item;
+    type Error = <CODEC as tokio_codec::Decoder>::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         trace!("[connection] poll receive");
@@ -115,10 +115,10 @@ where
 
 /// Clone over generic connector
 /// All instances of a given connector contain the same arc/mutex protected information
-impl<T, C> Clone for Connection<T, C>
+impl<T, CODEC> Clone for Connection<T, CODEC>
 where
     T: AsyncWrite + AsyncRead,
-    C: Encoder + Decoder + Default, 
+    CODEC: Encoder + Decoder + Default, 
 {
     fn clone(&self) -> Self {
         Connection {

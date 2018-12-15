@@ -16,6 +16,7 @@ extern crate tokio_io;
 extern crate tokio_codec;
 extern crate tokio_uds;
 extern crate tokio_tcp;
+extern crate tokio_udp;
 extern crate tokio_timer;
 
 extern crate serde;
@@ -30,6 +31,15 @@ extern crate tokio_serde_json_mirror as tokio_serde_json;
 #[macro_use]
 extern crate log;
 extern crate uuid;
+
+trait GenericServer {
+    type Address;
+    type Request;
+    type Response;
+    
+    fn send(&mut self, Self::Address);
+    //fn incoming(&mut self) -> Option<UnboundedReceiver<Request<>>>;
+}
 
 /// Server provides a generic server over a stream and codec
 /// This is used to implement daemon servers (ie. long running processes w/ network communication)
@@ -47,6 +57,11 @@ pub mod codecs;
 /// TCP implements a TCP socket server and connection
 pub mod tcp;
 pub use tcp::{TcpServer, TcpInfo, TcpConnection};
+
+/// UDP implements a UDP socket connection
+/// As UDP is connection-less, no server is required
+pub mod udp;
+//pub use udp::{UdpInfo};
 
 /// Unix implements a Unix socket server and connection
 pub mod unix;
