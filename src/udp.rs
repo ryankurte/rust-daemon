@@ -106,16 +106,9 @@ where
         let (outgoing_tx, outgoing_rx) = mpsc::unbounded::<_>();
         let (outgoing_exit_tx, outgoing_exit_rx) = oneshot::channel::<()>();
 
-        let tx_handle = outgoing_rx.for_each(move |(data, addr)| {
-            debug!("[udp connection] send to: '{:?}' data: '{:?}'", addr, data);
-            let _r = tx.start_send((data, addr));
-            Ok(())
-        })
-        .select2(outgoing_exit_rx)
-        .then(|_| {
-            info!("[udp connection] closing outgoing handler");
-            Ok(())
-        });;
+        let tx_handle = futures::lazy(|| {
+            outgoing_rx.forward(tx).then(|_| Ok(()) )
+        });
         spawn(tx_handle);
         
 
