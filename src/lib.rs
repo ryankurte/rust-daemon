@@ -51,6 +51,8 @@ pub use server::Server;
 pub mod connection;
 pub use connection::Connection;
 
+pub mod connection2;
+
 /// Codecs implement protocol handling over connectors
 pub mod codecs;
 
