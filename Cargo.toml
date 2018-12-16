@@ -1,6 +1,6 @@
 [package]
 name = "daemon-engine"
-version = "0.3.1"
+version = "0.3.2"
 documentation = "https://docs.rs/daemon-engine/"
 repository = "https://github.com/ryankurte/rust-daemon"
 description = "A helper package for writing unix rust daemons with IPC based clients"
