@@ -62,6 +62,7 @@ pub type OutgoingTx<RESP> = UnboundedSender<(RESP, SocketAddr)>;
 
 /// UdpConnection is a wrapper around UdpSocket to provide a consistent ish interface for UDP clients and servers.
 /// TODO: Ideally it should be possible to genericise this and merge back with the Connection and Server components
+#[derive(Clone)]
 pub struct UdpConnection<CODEC: Encoder + Decoder> 
 {
     incoming_rx: Arc<Mutex<IncomingRx<<CODEC as Decoder>::Item>>>,
