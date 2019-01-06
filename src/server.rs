@@ -32,13 +32,14 @@ pub struct Server<T: AsyncRead + AsyncWrite, C: Encoder + Decoder, I> {
     incoming_rx: Arc<Mutex<Option<UnboundedReceiver<Request<T, C, I>>>>>,
     pub(crate) exit_tx: Arc<Mutex<Option<oneshot::Sender<()>>>>,
     pub(crate) exit_rx: Arc<Mutex<Option<oneshot::Receiver<()>>>>,
+    codec: C,
     info: std::marker::PhantomData<I>,
 }
 
 impl<T, C, I> Server<T, C, I>
 where
     T: AsyncWrite + AsyncRead + Send + Sync + 'static,
-    C: Encoder + Decoder + Default + Send + 'static,
+    C: Encoder + Decoder + Clone + Send + 'static,
     I: Clone + Send + Debug + 'static,
     <C as Decoder>::Item: Clone + Send + Debug,
     <C as Decoder>::Error: Send + Debug,
@@ -50,7 +51,7 @@ where
     /// This sets up internal resources however requires implementation to handle
     /// creating listeners and binding connections
     /// See TcpServer and UnixServer for examples
-    pub fn base() -> Server<T, C, I> {
+    pub fn base(codec: C) -> Server<T, C, I> {
         // Setup internal state and communication channels
         let connections = Arc::new(Mutex::new(Vec::new()));
         let (incoming_tx, incoming_rx) = mpsc::unbounded::<Request<T, C, I>>();
@@ -62,6 +63,7 @@ where
             incoming_rx: Arc::new(Mutex::new(Some(incoming_rx))),
             exit_tx: Arc::new(Mutex::new(Some(exit_tx))),
             exit_rx: Arc::new(Mutex::new(Some(exit_rx))),
+            codec,
             info: std::marker::PhantomData,
         }
     }
@@ -81,7 +83,7 @@ where
     /// connections if required
     pub fn bind(&mut self, info: I, socket: T) {
         // Create new connection object
-        let conn = Connection::from(socket);
+        let conn = Connection::from_socket(socket, self.codec.clone());
 
         // Add connection to list
         self.connections.lock().unwrap().push(conn.clone());
@@ -129,7 +131,7 @@ where
 impl<T, C, I> Clone for Server<T, C, I>
 where
     T: AsyncWrite + AsyncRead + Send + Sync + 'static,
-    C: Encoder + Decoder + Default + Send + 'static,
+    C: Encoder + Decoder + Clone + Send + 'static,
     I: Clone + Send + Debug + 'static,
     <C as Decoder>::Item: Clone + Send + Debug,
     <C as Decoder>::Error: Send + Debug,
@@ -143,6 +145,7 @@ where
             incoming_rx: self.incoming_rx.clone(),
             exit_tx: self.exit_tx.clone(),
             exit_rx: self.exit_rx.clone(),
+            codec: self.codec.clone(),
             info: std::marker::PhantomData,
         }
     }
@@ -162,7 +165,7 @@ pub struct Request<T: AsyncRead + AsyncWrite, C: Encoder + Decoder, I> {
 impl<T, C, I> Request<T, C, I>
 where
     T: AsyncWrite + AsyncRead + Send + 'static,
-    C: Encoder + Decoder + Default + Send + 'static,
+    C: Encoder + Decoder + Clone + Send + 'static,
     I: Clone + Send + Debug + 'static,
     <C as Decoder>::Item: Send + Clone,
     <C as Decoder>::Error: Send + Debug,
@@ -182,7 +185,7 @@ where
 impl<T, C, I> Sink for Request<T, C, I>
 where
     T: AsyncWrite + AsyncRead + Send + 'static,
-    C: Encoder + Decoder + Default + Send + 'static,
+    C: Encoder + Decoder + Clone + Send + 'static,
     I: Clone + Send + Debug + 'static,
     <C as Decoder>::Item: Send,
     <C as Decoder>::Error: Send + Debug,

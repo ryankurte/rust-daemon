@@ -44,7 +44,7 @@ use error::Error;
 /// 
 /// # fn main() {
 /// let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8111);
-/// let client = UdpConnection::<JsonCodec<Request, Response>>::new(&addr).unwrap();
+/// let client = UdpConnection::<JsonCodec<Request, Response>>::new(&addr, JsonCodec::new()).unwrap();
 /// let (tx, rx) = client.split();
 /// // Send data
 /// tx.send((Request{}, addr.clone())).wait().unwrap();
@@ -70,17 +70,26 @@ pub struct UdpConnection<CODEC: Encoder + Decoder>
     exit_tx: Arc<Mutex<Option<(oneshot::Sender<()>, oneshot::Sender<()>)>>>,
 }
 
-impl <CODEC> From<UdpSocket> for UdpConnection<CODEC> 
+impl <CODEC> UdpConnection<CODEC> 
 where
-    CODEC: Encoder + Decoder + Default + Send + 'static,
-    <CODEC as Decoder>::Item: Send + Debug,
-    <CODEC as Decoder>::Error: Send + Debug,
+    CODEC: Encoder + Decoder + Clone + Send + 'static,
     <CODEC as Encoder>::Item: Send + Debug,
     <CODEC as Encoder>::Error: Send + Debug,
+    <CODEC as Decoder>::Item: Send + Debug,
+    <CODEC as Decoder>::Error: Send + Debug,
 {
-    fn from(socket: UdpSocket) -> UdpConnection<CODEC> {
+    /// Create a new connection by binding to the specified UDP socket
+    pub fn new(addr: &SocketAddr, codec: CODEC) -> Result<UdpConnection<CODEC>, Error> {
+        trace!("[connector] creating connection (udp address: {})", addr);
+        // Create the socket future
+        let socket = UdpSocket::bind(&addr)?;
+        // Create the socket instance
+        Ok(UdpConnection::from_socket(socket, codec))
+    }
 
-        let framed = UdpFramed::new(socket, CODEC::default());
+    /// Create a new connection from an existing udp socket
+    fn from_socket(socket: UdpSocket, codec: CODEC) -> UdpConnection<CODEC> {
+        let framed = UdpFramed::new(socket, codec);
         let (tx, rx) = framed.split();
 
         let (incoming_tx, incoming_rx) = mpsc::unbounded::<_>();
@@ -118,24 +127,6 @@ where
             exit_tx: Arc::new(Mutex::new(Some((incoming_exit_tx, outgoing_exit_tx)))),
         }
     }
-}
-
-impl <CODEC> UdpConnection<CODEC> 
-where
-    CODEC: Encoder + Decoder + Default + Send + 'static,
-    <CODEC as Encoder>::Item: Send + Debug,
-    <CODEC as Encoder>::Error: Send + Debug,
-    <CODEC as Decoder>::Item: Send + Debug,
-    <CODEC as Decoder>::Error: Send + Debug,
-{
-    /// Create a new client connected to the provided UDP socket
-    pub fn new(addr: &SocketAddr) -> Result<UdpConnection<CODEC>, Error> {
-        trace!("[connector] creating connection (udp address: {})", addr);
-        // Create the socket future
-        let socket = UdpSocket::bind(&addr)?;
-        // Create the socket instance
-        Ok(UdpConnection::from(socket))
-    }
 
     pub fn send(&mut self, addr: SocketAddr, data: <CODEC as Encoder>::Item) {
         let unlocked = self.outgoing_tx.lock().unwrap();
@@ -157,13 +148,13 @@ where
 /// Blank send
 unsafe impl<CODEC> Send for UdpConnection<CODEC> 
 where
-    CODEC: Encoder + Decoder + Default, 
+    CODEC: Encoder + Decoder + Clone, 
 {}
 
 /// Sink implementation allows sending messages over a connection
 impl<CODEC> Sink for UdpConnection<CODEC>
 where
-    CODEC: Encoder + Decoder + Default, 
+    CODEC: Encoder + Decoder + Clone, 
 {
     type SinkItem = (<CODEC as Encoder>::Item, SocketAddr);
     type SinkError = SendError<(<CODEC as Encoder>::Item, SocketAddr)>;
@@ -185,7 +176,7 @@ where
 /// Stream implementation allows receiving messages from a connection
 impl<CODEC> Stream for UdpConnection<CODEC>
 where
-    CODEC: Encoder + Decoder + Default, 
+    CODEC: Encoder + Decoder + Clone, 
 {
     type Item = (<CODEC as Decoder>::Item, SocketAddr);
     type Error = ();

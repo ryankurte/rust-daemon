@@ -46,7 +46,7 @@ use error::Error;
 /// 
 /// let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 8111);
 /// let server = future::lazy(move || {
-///     let mut s = TcpServer::<JsonCodec<Response, Request>>::new(&addr).unwrap();
+///     let mut s = TcpServer::<JsonCodec<Response, Request>>::new(&addr, JsonCodec::new()).unwrap();
 ///     let server_handle = s
 ///         .incoming()
 ///         .unwrap()
@@ -87,7 +87,7 @@ pub type TcpServer<C> = Server<TcpStream, C, TcpInfo>;
 /// 
 /// # fn main() {
 /// let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8111);
-/// let client = TcpConnection::<JsonCodec<Request, Response>>::new(&addr).unwrap();
+/// let client = TcpConnection::<JsonCodec<Request, Response>>::new(&addr, JsonCodec::new()).unwrap();
 /// let (tx, rx) = client.split();
 /// // Send data
 /// tx.send(Request{}).wait().unwrap();
@@ -103,19 +103,18 @@ pub type TcpConnection<C> = Connection<TcpStream, C>;
 
 impl <C> TcpConnection<C> 
 where
-    C: Encoder + Decoder + Default + Send + 'static,
+    C: Encoder + Decoder + Clone + Send + 'static,
     <C as Decoder>::Item: Send,
     <C as Decoder>::Error: Send + Debug,
 {
     /// Create a new client connected to the provided TCP socket address
-    pub fn new(addr: &SocketAddr) -> Result<Connection<TcpStream, C>, Error> {
+    pub fn new(addr: &SocketAddr, codec: C) -> Result<Connection<TcpStream, C>, Error> {
         trace!("[connector] creating connection (tcp address: {})", addr);
         // Create the socket future
         let socket = TcpStream::connect(&addr).wait()?;
         // Create the socket instance
-        Ok(Connection::from(socket))
+        Ok(Connection::from_socket(socket, codec))
     }
-
 
     pub fn close(self) {
         
@@ -132,17 +131,17 @@ pub struct TcpInfo {
 /// TCP server implementation.
 impl<C> TcpServer<C>
 where
-    C: Encoder + Decoder + Default + Send + 'static,
+    C: Encoder + Decoder + Clone + Send + 'static,
     <C as Decoder>::Item: Clone + Send + Debug,
     <C as Decoder>::Error: Send + Debug,
     <C as Encoder>::Item: Clone + Send + Debug,
     <C as Encoder>::Error: Send + Debug,
 {
     
-    pub fn new(address: &SocketAddr) -> Result<TcpServer<C>, Error> {
+    pub fn new(address: &SocketAddr, codec: C) -> Result<TcpServer<C>, Error> {
 
         // Create base server instance
-        let server = Server::base();
+        let server = Server::base(codec);
 
         // Create listener socket
         let socket = TcpListener::bind(&address)?;
