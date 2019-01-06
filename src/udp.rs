@@ -11,7 +11,6 @@ use std::clone::{Clone};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
-use futures::prelude::*;
 use futures::sync::mpsc;
 use futures::sync::mpsc::{UnboundedReceiver, UnboundedSender, SendError};
 use futures::sync::oneshot;
