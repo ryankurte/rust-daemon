@@ -45,7 +45,7 @@ use users::{User, Group, get_group_by_gid, get_user_by_uid};
 /// 
 /// let addr = "/var/tmp/test-daemon.sock";
 /// let server = future::lazy(move || {
-///     let mut s = UnixServer::<JsonCodec<Response, Request>>::new(&addr).unwrap();
+///     let mut s = UnixServer::<JsonCodec<Response, Request>>::new(&addr, JsonCodec::new()).unwrap();
 ///     let server_handle = s
 ///         .incoming()
 ///         .unwrap()
@@ -85,7 +85,7 @@ pub type UnixServer<C> = Server<UnixStream, C, UnixInfo>;
 /// 
 /// # fn main() {
 /// let addr = "/var/tmp/test-daemon.sock";
-/// let client = UnixConnection::<JsonCodec<Request, Response>>::new(&addr).unwrap();
+/// let client = UnixConnection::<JsonCodec<Request, Response>>::new(&addr, JsonCodec::new()).unwrap();
 /// let (tx, rx) = client.split();
 /// 
 /// // Send data
@@ -102,17 +102,17 @@ pub type UnixConnection<C> = Connection<UnixStream, C>;
 
 impl <C> UnixConnection<C> 
 where
-    C: Encoder + Decoder + Default + Send + 'static,
+    C: Encoder + Decoder + Clone + Send + 'static,
     <C as Decoder>::Item: Send,
     <C as Decoder>::Error: Send + Debug,
 {
     /// Create a new client connected to the provided unix socket address
-    pub fn new(path: &str) -> Result<UnixConnection<C>, Error> {
+    pub fn new(path: &str, codec: C) -> Result<UnixConnection<C>, Error> {
         trace!("[connector] creating connection (unix path: {})", path);
         // Create the socket future
         let socket = UnixStream::connect(&path).wait()?;
         // Create the socket instance
-        Ok(Connection::from(socket))
+        Ok(Connection::from_socket(socket, codec))
     }
 
 
@@ -143,18 +143,18 @@ impl UnixInfo {
 /// This binds to and listens on a unix domain socket
 impl<C> UnixServer<C>
 where
-    C: Encoder + Decoder + Default + Send + 'static,
+    C: Encoder + Decoder + Clone + Send + 'static,
     <C as Decoder>::Item: Clone + Send + Debug,
     <C as Decoder>::Error: Send + Debug,
     <C as Encoder>::Item: Clone + Send + Debug,
     <C as Encoder>::Error: Send + Debug,
 {
-    pub fn new(path: &str) -> Result<UnixServer<C>, Error> {
+    pub fn new(path: &str, codec: C) -> Result<UnixServer<C>, Error> {
         // Pre-clear socket file
         let _res = fs::remove_file(&path);
 
         // Create base server instance
-        let server = Server::base();
+        let server = Server::base(codec);
 
         // Create listener socket
         let socket = UnixListener::bind(&path)?;

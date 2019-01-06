@@ -36,7 +36,7 @@ fn client_server_unix() {
     let server_path = path.clone();
     let test = future::lazy(move || {
         println!("[TEST UNIX] Creating server");
-        let mut server = UnixServer::<JsonCodec<Test, Test>>::new(&server_path).unwrap();
+        let mut server = UnixServer::<JsonCodec<Test, Test>>::new( &server_path, JsonCodec::new() ).unwrap();
 
         println!("[TEST UNIX] Awaiting connect");
         let server_handle = server.incoming().unwrap()
@@ -48,7 +48,7 @@ fn client_server_unix() {
         spawn(server_handle);
 
         println!("[TEST UNIX] Creating client");
-        let client = UnixConnection::<JsonCodec<Test, Test>>::new(&path).unwrap();
+        let client = UnixConnection::<JsonCodec<Test, Test>>::new(&path, JsonCodec::new() ).unwrap();
 
         let (tx, rx) = client.clone().split();
 
@@ -91,7 +91,7 @@ fn client_server_tcp() {
 
     let test = future::lazy(move || {
         println!("[TEST TCP] Creating server");
-        let mut server = TcpServer::<JsonCodec<Test, Test>>::new(&server_socket).unwrap();
+        let mut server = TcpServer::<JsonCodec<Test, Test>>::new( &server_socket, JsonCodec::new() ).unwrap();
 
         println!("[TEST TCP] Awaiting connect");
         let server_handle = server.incoming().unwrap()
@@ -103,7 +103,7 @@ fn client_server_tcp() {
         spawn(server_handle);
 
         println!("[TEST TCP] Creating client");
-        let client = TcpConnection::<JsonCodec<Test, Test>>::new(&client_socket).unwrap();
+        let client = TcpConnection::<JsonCodec<Test, Test>>::new( &client_socket, JsonCodec::new() ).unwrap();
 
         let (tx, rx) = client.clone().split();
 

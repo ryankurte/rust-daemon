@@ -17,7 +17,7 @@ use serde_json;
 /// A codec for JSON encoding and decoding
 /// ENC is the type to encode, DEC is the type to decode, ERR is the error type to be
 /// returned for both operations
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct JsonCodec<ENC, DEC, ERR> 
 {
     enc: PhantomData<ENC>,
@@ -57,14 +57,14 @@ where
     }
 }
 
-/// Default impl required for use with connections
-impl <ENC, DEC, ERR>Default for JsonCodec<ENC, DEC, ERR> 
+/// Clone impl required for use with connections
+impl <ENC, DEC, ERR>Clone for JsonCodec<ENC, DEC, ERR> 
 where 
     for<'de> DEC: Deserialize<'de> + Clone + Send + 'static,
     for<'de> ENC: Serialize + Clone + Send + 'static,
     ERR: From<serde_json::Error> + From<io::Error> + 'static,
 {
-    fn default() -> JsonCodec<ENC, DEC, ERR> {
+    fn clone(&self) -> JsonCodec<ENC, DEC, ERR> {
         JsonCodec::new()
     }
 }
