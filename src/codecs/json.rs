@@ -15,14 +15,14 @@ use serde::{Serialize, Deserialize};
 use serde_json;
 
 /// A codec for JSON encoding and decoding
-/// ENC is the type to encode, DEC is the type to decode, ERR is the error type to be
+/// Enc is the type to encode, Dec is the type to decode, E is the error type to be
 /// returned for both operations
 #[derive(Debug, PartialEq)]
-pub struct JsonCodec<ENC, DEC, ERR> 
+pub struct JsonCodec<Enc, Dec, E> 
 {
-    enc: PhantomData<ENC>,
-    dec: PhantomData<DEC>,
-    err: PhantomData<ERR>,
+    enc: PhantomData<Enc>,
+    dec: PhantomData<Dec>,
+    err: PhantomData<E>,
 }
 
 /// Basic compatible error type
@@ -45,39 +45,39 @@ impl From<serde_json::Error> for JsonError {
 }
 
 /// New builds an empty codec with associated types
-impl <ENC, DEC, ERR>JsonCodec<ENC, DEC, ERR> 
+impl <Enc, Dec, E>JsonCodec<Enc, Dec, E> 
 where 
-    for<'de> DEC: Deserialize<'de> + Clone + Send + 'static,
-    for<'de> ENC: Serialize + Clone + Send + 'static,
-    ERR: From<serde_json::Error> + From<io::Error> + 'static,
+    for<'de> Dec: Deserialize<'de> + Clone + Send + 'static,
+    for<'de> Enc: Serialize + Clone + Send + 'static,
+    E: From<serde_json::Error> + From<io::Error> + 'static,
 {
     /// Creates a new `JsonCodec` for shipping around raw bytes.
-    pub fn new() -> JsonCodec<ENC, DEC, ERR> { 
+    pub fn new() -> JsonCodec<Enc, Dec, E> { 
         JsonCodec {enc: PhantomData, dec: PhantomData, err: PhantomData}  
     }
 }
 
 /// Clone impl required for use with connections
-impl <ENC, DEC, ERR>Clone for JsonCodec<ENC, DEC, ERR> 
+impl <Enc, Dec, E>Clone for JsonCodec<Enc, Dec, E> 
 where 
-    for<'de> DEC: Deserialize<'de> + Clone + Send + 'static,
-    for<'de> ENC: Serialize + Clone + Send + 'static,
-    ERR: From<serde_json::Error> + From<io::Error> + 'static,
+    for<'de> Dec: Deserialize<'de> + Clone + Send + 'static,
+    for<'de> Enc: Serialize + Clone + Send + 'static,
+    E: From<serde_json::Error> + From<io::Error> + 'static,
 {
-    fn clone(&self) -> JsonCodec<ENC, DEC, ERR> {
+    fn clone(&self) -> JsonCodec<Enc, Dec, E> {
         JsonCodec::new()
     }
 }
 
 /// Decoder impl parses json objects from bytes
-impl <ENC, DEC, ERR>Decoder for JsonCodec<ENC, DEC, ERR> 
+impl <Enc, Dec, E>Decoder for JsonCodec<Enc, Dec, E> 
 where 
-    for<'de> DEC: Deserialize<'de> + Clone + Send + 'static,
-    for<'de> ENC: Serialize + Clone + Send + 'static,
-    ERR: From<serde_json::Error> + From<io::Error> + 'static,
+    for<'de> Dec: Deserialize<'de> + Clone + Send + 'static,
+    for<'de> Enc: Serialize + Clone + Send + 'static,
+    E: From<serde_json::Error> + From<io::Error> + 'static,
 {
-    type Item = DEC;
-    type Error = ERR;
+    type Item = Dec;
+    type Error = E;
 
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         let offset;
@@ -86,7 +86,7 @@ where
         {
             // Build streaming JSON iterator over data
             let de = serde_json::Deserializer::from_slice(&buf);
-            let mut iter = de.into_iter::<DEC>();
+            let mut iter = de.into_iter::<Dec>();
 
             // Attempt to fetch an item and generate response
             res = match iter.next() {
@@ -108,14 +108,14 @@ where
 }
 
 /// Encoder impl encodes object streams to bytes
-impl <ENC, DEC, ERR>Encoder for JsonCodec<ENC, DEC, ERR> 
+impl <Enc, Dec, E>Encoder for JsonCodec<Enc, Dec, E> 
 where 
-    for<'de> DEC: Deserialize<'de> + Clone + Send + 'static,
-    for<'de> ENC: Serialize + Clone + Send + 'static,
-    ERR: From<serde_json::Error> + From<io::Error> + 'static,
+    for<'de> Dec: Deserialize<'de> + Clone + Send + 'static,
+    for<'de> Enc: Serialize + Clone + Send + 'static,
+    E: From<serde_json::Error> + From<io::Error> + 'static,
 {
-    type Item = ENC;
-    type Error = ERR;
+    type Item = Enc;
+    type Error = E;
 
     fn encode(&mut self, data: Self::Item, buf: &mut BytesMut) -> Result<(), Self::Error> {
         // Encode json

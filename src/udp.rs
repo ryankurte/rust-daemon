@@ -56,29 +56,29 @@ use error::Error;
 /// # }
 /// ```
 
-pub type IncomingRx<REQ> = UnboundedReceiver<(REQ, SocketAddr)>;
-pub type OutgoingTx<RESP> = UnboundedSender<(RESP, SocketAddr)>;
+pub type IncomingRx<Req> = UnboundedReceiver<(Req, SocketAddr)>;
+pub type OutgoingTx<Resp> = UnboundedSender<(Resp, SocketAddr)>;
 
 /// UdpConnection is a wrapper around UdpSocket to provide a consistent ish interface for UDP clients and servers.
 /// TODO: Ideally it should be possible to genericise this and merge back with the Connection and Server components
 #[derive(Clone)]
-pub struct UdpConnection<CODEC: Encoder + Decoder> 
+pub struct UdpConnection<Codec: Encoder + Decoder> 
 {
-    incoming_rx: Arc<Mutex<IncomingRx<<CODEC as Decoder>::Item>>>,
-    outgoing_tx: Arc<Mutex<OutgoingTx<<CODEC as Encoder>::Item>>>,
+    incoming_rx: Arc<Mutex<IncomingRx<<Codec as Decoder>::Item>>>,
+    outgoing_tx: Arc<Mutex<OutgoingTx<<Codec as Encoder>::Item>>>,
     exit_tx: Arc<Mutex<Option<(oneshot::Sender<()>, oneshot::Sender<()>)>>>,
 }
 
-impl <CODEC> UdpConnection<CODEC> 
+impl <Codec> UdpConnection<Codec> 
 where
-    CODEC: Encoder + Decoder + Clone + Send + 'static,
-    <CODEC as Encoder>::Item: Send + Debug,
-    <CODEC as Encoder>::Error: Send + Debug,
-    <CODEC as Decoder>::Item: Send + Debug,
-    <CODEC as Decoder>::Error: Send + Debug,
+    Codec: Encoder + Decoder + Clone + Send + 'static,
+    <Codec as Encoder>::Item: Send + Debug,
+    <Codec as Encoder>::Error: Send + Debug,
+    <Codec as Decoder>::Item: Send + Debug,
+    <Codec as Decoder>::Error: Send + Debug,
 {
     /// Create a new connection by binding to the specified UDP socket
-    pub fn new(addr: &SocketAddr, codec: CODEC) -> Result<UdpConnection<CODEC>, Error> {
+    pub fn new(addr: &SocketAddr, codec: Codec) -> Result<UdpConnection<Codec>, Error> {
         trace!("[connector] creating connection (udp address: {})", addr);
         // Create the socket future
         let socket = UdpSocket::bind(&addr)?;
@@ -87,7 +87,7 @@ where
     }
 
     /// Create a new connection from an existing udp socket
-    fn from_socket(socket: UdpSocket, codec: CODEC) -> UdpConnection<CODEC> {
+    fn from_socket(socket: UdpSocket, codec: Codec) -> UdpConnection<Codec> {
         let framed = UdpFramed::new(socket, codec);
         let (tx, rx) = framed.split();
 
@@ -127,7 +127,7 @@ where
         }
     }
 
-    pub fn send(&mut self, addr: SocketAddr, data: <CODEC as Encoder>::Item) {
+    pub fn send(&mut self, addr: SocketAddr, data: <Codec as Encoder>::Item) {
         let unlocked = self.outgoing_tx.lock().unwrap();
 
         let _err = unlocked.unbounded_send((data, addr));
@@ -145,18 +145,18 @@ where
 }
 
 /// Blank send
-unsafe impl<CODEC> Send for UdpConnection<CODEC> 
+unsafe impl<Codec> Send for UdpConnection<Codec> 
 where
-    CODEC: Encoder + Decoder + Clone, 
+    Codec: Encoder + Decoder + Clone, 
 {}
 
 /// Sink implementation allows sending messages over a connection
-impl<CODEC> Sink for UdpConnection<CODEC>
+impl<Codec> Sink for UdpConnection<Codec>
 where
-    CODEC: Encoder + Decoder + Clone, 
+    Codec: Encoder + Decoder + Clone, 
 {
-    type SinkItem = (<CODEC as Encoder>::Item, SocketAddr);
-    type SinkError = SendError<(<CODEC as Encoder>::Item, SocketAddr)>;
+    type SinkItem = (<Codec as Encoder>::Item, SocketAddr);
+    type SinkError = SendError<(<Codec as Encoder>::Item, SocketAddr)>;
 
     fn start_send(
         &mut self,
@@ -173,11 +173,11 @@ where
 }
 
 /// Stream implementation allows receiving messages from a connection
-impl<CODEC> Stream for UdpConnection<CODEC>
+impl<Codec> Stream for UdpConnection<Codec>
 where
-    CODEC: Encoder + Decoder + Clone, 
+    Codec: Encoder + Decoder + Clone, 
 {
-    type Item = (<CODEC as Decoder>::Item, SocketAddr);
+    type Item = (<Codec as Decoder>::Item, SocketAddr);
     type Error = ();
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {

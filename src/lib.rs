@@ -74,5 +74,5 @@ pub use error::Error as DaemonError;
 
 /// JsonCodec re-exports the JSON codec for convenience
 /// This is an alias of JsonCodec with default JsonError, use codecs::json::JsonCodec to specify error type manually
-pub type JsonCodec<REQ, RESP> = codecs::json::JsonCodec<REQ, RESP, codecs::json::JsonError>;
+pub type JsonCodec<Req, Resp> = codecs::json::JsonCodec<Req, Resp, codecs::json::JsonError>;
 
