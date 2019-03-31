@@ -55,7 +55,7 @@ where
     /// Exit closes the handler task if bound
     /// note this will panic if exit has already been called
     pub fn shutdown(self) {
-        info!("[connection] exit called");
+        debug!("[connection] exit called");
 
         // Send exit signal
         if let Some(c) = self.exit_tx.lock().unwrap().take() {
@@ -88,12 +88,12 @@ where
         &mut self,
         item: Self::SinkItem,
     ) -> Result<AsyncSink<Self::SinkItem>, Self::SinkError> {
-        info!("[connection] start send");
+        debug!("[connection] start send");
         self.stream.lock().unwrap().start_send(item)
     }
 
     fn poll_complete(&mut self) -> Result<Async<()>, Self::SinkError> {
-        info!("[connection] send complete");
+        debug!("[connection] send complete");
         self.stream.lock().unwrap().poll_complete()
     }
 }
@@ -108,7 +108,7 @@ where
     type Error = <Codec as tokio_codec::Decoder>::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        info!("[connection] poll receive");
+        debug!("[connection] poll receive");
         self.stream.lock().unwrap().poll()
     }
 }

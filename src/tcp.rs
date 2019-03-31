@@ -109,7 +109,7 @@ where
 {
     /// Create a new client connected to the provided TCP socket address
     pub fn new(addr: &SocketAddr, codec: C) -> impl Future<Item=Connection<TcpStream, C>, Error=Error> {
-        info!("[connector] creating connection (tcp address: {})", addr);
+        debug!("[connector] creating connection (tcp address: {})", addr);
         // Create the socket future
         TcpStream::connect(&addr).map(move |s| {
             Connection::from_socket(s, codec)
@@ -163,7 +163,7 @@ where
             })
             .select2(exit_rx)
             .then(|_| {
-                info!("[server] closing listener");
+                debug!("[server] closing listener");
                 Ok(())
             });
         spawn(tokio_server);

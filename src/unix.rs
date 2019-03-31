@@ -108,7 +108,7 @@ where
 {
     /// Create a new client connected to the provided unix socket address
     pub fn new(path: &str, codec: C) -> impl Future<Item=UnixConnection<C>, Error=Error> {
-        info!("[connector] creating connection (unix path: {})", path);
+        debug!("[connector] creating connection (unix path: {})", path);
         // Create the socket future
         UnixStream::connect(&path)
         .map(|s| {
@@ -176,7 +176,7 @@ where
             })
             .select2(exit_rx)
             .then(|_| {
-                info!("[server] closing listener");
+                debug!("[server] closing listener");
                 Ok(())
             });
         spawn(tokio_server);

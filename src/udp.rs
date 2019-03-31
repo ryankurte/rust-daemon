@@ -79,7 +79,7 @@ where
 {
     /// Create a new connection by binding to the specified UDP socket
     pub fn new(addr: &SocketAddr, codec: Codec) -> impl Future<Item=UdpConnection<Codec>, Error=Error> {
-        info!("[connector] creating connection (udp address: {})", addr);
+        debug!("[connector] creating connection (udp address: {})", addr);
         // Create the socket future
         let socket = match UdpSocket::bind(&addr) {
             Ok(s) => s,
@@ -99,13 +99,13 @@ where
 
         // Handle incoming messages
         let rx_handle = rx.for_each(move |(data, addr)| {
-            info!("[udp connection] receive from: '{:?}' data: '{:?}'", addr, data);
+            trace!("[udp connection] receive from: '{:?}' data: '{:?}'", addr, data);
             incoming_tx.clone().send((data, addr)).map(|_| () ).map_err(|e| panic!("[udp connection] send error: {:?}", e))
         })
         .map_err(|e| panic!("[udp connection] error: {:?}", e))
         .select2(incoming_exit_rx)
         .then(|_| {
-            info!("[udp connection] closing incoming handler");
+            debug!("[udp connection] closing incoming handler");
             Ok(())
         });
         spawn(rx_handle);
@@ -116,7 +116,7 @@ where
         let tx_handle = tx.send_all(outgoing_rx.map_err(|_| panic!() ))
         .select2(outgoing_exit_rx)
         .then(|_| {
-            info!("[udp connection] closing outgoing handler");
+            debug!("[udp connection] closing outgoing handler");
             Ok(())
         });
         spawn(tx_handle);
@@ -164,12 +164,12 @@ where
         &mut self,
         item: Self::SinkItem,
     ) -> Result<AsyncSink<Self::SinkItem>, Self::SinkError> {
-        info!("[connection] start send");
+        trace!("[connection] start send");
         self.outgoing_tx.lock().unwrap().start_send(item)
     }
 
     fn poll_complete(&mut self) -> Result<Async<()>, Self::SinkError> {
-        info!("[connection] send complete");
+        trace!("[connection] send complete");
         self.outgoing_tx.lock().unwrap().poll_complete()
     }
 }
@@ -183,7 +183,7 @@ where
     type Error = ();
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        info!("[connection] poll receive");
+        trace!("[connection] poll receive");
         self.incoming_rx.lock().unwrap().poll()
     }
 }

@@ -101,7 +101,7 @@ where
         .map_err(|e| panic!("[server] error: {:?}", e) )
         .select2(exit_rx)
         .then(|_| {
-            info!("[server] closing handler");
+            debug!("[server] closing handler");
             Ok(())
         });
 
@@ -112,7 +112,7 @@ where
     /// 
     /// This sends exit messages to the main task and all connected hosts
     pub fn close(self) {
-        info!("[server] closing");
+        debug!("[server] closing");
 
         // Send listener exit signal
         let tx = self.exit_tx.lock().unwrap().take().unwrap();
@@ -196,12 +196,12 @@ where
         &mut self,
         item: Self::SinkItem,
     ) -> Result<AsyncSink<Self::SinkItem>, Self::SinkError> {
-        info!("[request] start send");
+        trace!("[request] start send");
         self.inner.start_send(item)
     }
 
     fn poll_complete(&mut self) -> Result<Async<()>, Self::SinkError> {
-        info!("[request] send complete");
+        trace!("[request] send complete");
         self.inner.poll_complete()
     }
 }
