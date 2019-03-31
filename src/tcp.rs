@@ -87,7 +87,7 @@ pub type TcpServer<C> = Server<TcpStream, C, TcpInfo>;
 /// 
 /// # fn main() {
 /// let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8111);
-/// let client = TcpConnection::<JsonCodec<Request, Response>>::new(&addr, JsonCodec::new()).unwrap();
+/// let client = TcpConnection::<JsonCodec<Request, Response>>::new(&addr, JsonCodec::new()).wait().unwrap();
 /// let (tx, rx) = client.split();
 /// // Send data
 /// tx.send(Request{}).wait().unwrap();
@@ -108,12 +108,12 @@ where
     <C as Decoder>::Error: Send + Debug,
 {
     /// Create a new client connected to the provided TCP socket address
-    pub fn new(addr: &SocketAddr, codec: C) -> Result<Connection<TcpStream, C>, Error> {
-        trace!("[connector] creating connection (tcp address: {})", addr);
+    pub fn new(addr: &SocketAddr, codec: C) -> impl Future<Item=Connection<TcpStream, C>, Error=Error> {
+        info!("[connector] creating connection (tcp address: {})", addr);
         // Create the socket future
-        let socket = TcpStream::connect(&addr).wait()?;
-        // Create the socket instance
-        Ok(Connection::from_socket(socket, codec))
+        TcpStream::connect(&addr).map(move |s| {
+            Connection::from_socket(s, codec)
+        }).map_err(|e| e.into() )
     }
 
     pub fn close(self) {
@@ -153,6 +153,7 @@ where
         let tokio_server = socket
             .incoming()
             .for_each(move |s| {
+                debug!("[server] accept connection: {:?}", s);
                 let info = TcpInfo{address: s.peer_addr().unwrap()};
                 server_int.bind(info, s); 
                 Ok(())

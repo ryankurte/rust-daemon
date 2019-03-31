@@ -43,7 +43,7 @@ use error::Error;
 /// 
 /// # fn main() {
 /// let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8111);
-/// let client = UdpConnection::<JsonCodec<Request, Response>>::new(&addr, JsonCodec::new()).unwrap();
+/// let client = UdpConnection::<JsonCodec<Request, Response>>::new(&addr, JsonCodec::new()).wait().unwrap();
 /// let (tx, rx) = client.split();
 /// // Send data
 /// tx.send((Request{}, addr.clone())).wait().unwrap();
@@ -78,12 +78,15 @@ where
     <CODEC as Decoder>::Error: Send + Debug,
 {
     /// Create a new connection by binding to the specified UDP socket
-    pub fn new(addr: &SocketAddr, codec: CODEC) -> Result<UdpConnection<CODEC>, Error> {
-        trace!("[connector] creating connection (udp address: {})", addr);
+    pub fn new(addr: &SocketAddr, codec: CODEC) -> impl Future<Item=UdpConnection<CODEC>, Error=Error> {
+        info!("[connector] creating connection (udp address: {})", addr);
         // Create the socket future
-        let socket = UdpSocket::bind(&addr)?;
+        let socket = match UdpSocket::bind(&addr) {
+            Ok(s) => s,
+            Err(e) => return futures::future::err(e.into()),
+        };
         // Create the socket instance
-        Ok(UdpConnection::from_socket(socket, codec))
+        futures::future::ok(UdpConnection::from_socket(socket, codec))
     }
 
     /// Create a new connection from an existing udp socket
@@ -96,9 +99,8 @@ where
 
         // Handle incoming messages
         let rx_handle = rx.for_each(move |(data, addr)| {
-            debug!("[udp connection] receive from: '{:?}' data: '{:?}'", addr, data);
-            incoming_tx.clone().send((data, addr)).wait().unwrap();
-            Ok(())
+            info!("[udp connection] receive from: '{:?}' data: '{:?}'", addr, data);
+            incoming_tx.clone().send((data, addr)).map(|_| () ).map_err(|e| panic!("[udp connection] send error: {:?}", e))
         })
         .map_err(|e| panic!("[udp connection] error: {:?}", e))
         .select2(incoming_exit_rx)
@@ -162,12 +164,12 @@ where
         &mut self,
         item: Self::SinkItem,
     ) -> Result<AsyncSink<Self::SinkItem>, Self::SinkError> {
-        trace!("[connection] start send");
+        info!("[connection] start send");
         self.outgoing_tx.lock().unwrap().start_send(item)
     }
 
     fn poll_complete(&mut self) -> Result<Async<()>, Self::SinkError> {
-        trace!("[connection] send complete");
+        info!("[connection] send complete");
         self.outgoing_tx.lock().unwrap().poll_complete()
     }
 }
@@ -181,7 +183,7 @@ where
     type Error = ();
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        trace!("[connection] poll receive");
+        info!("[connection] poll receive");
         self.incoming_rx.lock().unwrap().poll()
     }
 }

@@ -85,7 +85,7 @@ pub type UnixServer<C> = Server<UnixStream, C, UnixInfo>;
 /// 
 /// # fn main() {
 /// let addr = "/var/tmp/test-daemon.sock";
-/// let client = UnixConnection::<JsonCodec<Request, Response>>::new(&addr, JsonCodec::new()).unwrap();
+/// let client = UnixConnection::<JsonCodec<Request, Response>>::new(&addr, JsonCodec::new()).wait().unwrap();
 /// let (tx, rx) = client.split();
 /// 
 /// // Send data
@@ -107,14 +107,14 @@ where
     <C as Decoder>::Error: Send + Debug,
 {
     /// Create a new client connected to the provided unix socket address
-    pub fn new(path: &str, codec: C) -> Result<UnixConnection<C>, Error> {
-        trace!("[connector] creating connection (unix path: {})", path);
+    pub fn new(path: &str, codec: C) -> impl Future<Item=UnixConnection<C>, Error=Error> {
+        info!("[connector] creating connection (unix path: {})", path);
         // Create the socket future
-        let socket = UnixStream::connect(&path).wait()?;
-        // Create the socket instance
-        Ok(Connection::from_socket(socket, codec))
+        UnixStream::connect(&path)
+        .map(|s| {
+            Connection::from_socket(s, codec)
+        }).map_err(|e| e.into() )
     }
-
 
     pub fn close(self) {
         

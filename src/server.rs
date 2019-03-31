@@ -89,17 +89,16 @@ where
         self.connections.lock().unwrap().push(conn.clone());
 
         // Handle incoming requests
-        // This creates a handler task on the connecton object
+        // This creates a handler task on the connection object
         let inner_tx = self.incoming_tx.clone();
         let exit_rx = conn.exit_rx.lock().unwrap().take();
 
         let rx_handle = conn.clone().for_each(move |data| {
             let tx = inner_tx.lock().unwrap();
             let req = Request{inner: conn.clone(), info: info.clone(), data: data.clone()};
-            tx.clone().send(req).wait().unwrap();
-            Ok(())
+            tx.clone().send(req).map(|_| () ).map_err(|e| panic!("[server] send error: {:?}", e) )
         })
-        .map_err(|e| panic!("[server] error: {:?}", e))
+        .map_err(|e| panic!("[server] error: {:?}", e) )
         .select2(exit_rx)
         .then(|_| {
             info!("[server] closing handler");
@@ -113,7 +112,7 @@ where
     /// 
     /// This sends exit messages to the main task and all connected hosts
     pub fn close(self) {
-        trace!("[server] closing");
+        info!("[server] closing");
 
         // Send listener exit signal
         let tx = self.exit_tx.lock().unwrap().take().unwrap();
@@ -197,12 +196,12 @@ where
         &mut self,
         item: Self::SinkItem,
     ) -> Result<AsyncSink<Self::SinkItem>, Self::SinkError> {
-        trace!("[request] start send");
+        info!("[request] start send");
         self.inner.start_send(item)
     }
 
     fn poll_complete(&mut self) -> Result<Async<()>, Self::SinkError> {
-        trace!("[request] send complete");
+        info!("[request] send complete");
         self.inner.poll_complete()
     }
 }

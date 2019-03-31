@@ -48,7 +48,7 @@ fn client_server_unix() {
         spawn(server_handle);
 
         println!("[TEST UNIX] Creating client");
-        let client = UnixConnection::<JsonCodec<Test, Test>>::new(&path, JsonCodec::new() ).unwrap();
+        let client = UnixConnection::<JsonCodec<Test, Test>>::new(&path, JsonCodec::new() ).wait().unwrap();
 
         let (tx, rx) = client.clone().split();
 
@@ -103,7 +103,7 @@ fn client_server_tcp() {
         spawn(server_handle);
 
         println!("[TEST TCP] Creating client");
-        let client = TcpConnection::<JsonCodec<Test, Test>>::new( &client_socket, JsonCodec::new() ).unwrap();
+        let client = TcpConnection::<JsonCodec<Test, Test>>::new( &client_socket, JsonCodec::new() ).wait().unwrap();
 
         let (tx, rx) = client.clone().split();
 

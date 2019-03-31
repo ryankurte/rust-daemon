@@ -88,12 +88,12 @@ where
         &mut self,
         item: Self::SinkItem,
     ) -> Result<AsyncSink<Self::SinkItem>, Self::SinkError> {
-        trace!("[connection] start send");
+        info!("[connection] start send");
         self.stream.lock().unwrap().start_send(item)
     }
 
     fn poll_complete(&mut self) -> Result<Async<()>, Self::SinkError> {
-        trace!("[connection] send complete");
+        info!("[connection] send complete");
         self.stream.lock().unwrap().poll_complete()
     }
 }
@@ -108,7 +108,7 @@ where
     type Error = <CODEC as tokio_codec::Decoder>::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        trace!("[connection] poll receive");
+        info!("[connection] poll receive");
         self.stream.lock().unwrap().poll()
     }
 }
