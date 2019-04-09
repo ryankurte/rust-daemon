@@ -1,3 +1,5 @@
+//#![feature(await_macro, async_await, futures_api)]
+
 /**
  * rust-daemon
  * Core module, re-exports client and server components
@@ -5,12 +7,14 @@
  * https://github.com/ryankurte/rust-daemon
  * Copyright 2018 Ryan Kurte
  */
+
 extern crate libc;
 extern crate users;
 
 extern crate futures;
 extern crate bytes;
 
+#[macro_use]
 extern crate tokio;
 extern crate tokio_io;
 extern crate tokio_codec;
