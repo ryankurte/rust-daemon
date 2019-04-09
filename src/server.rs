@@ -18,7 +18,7 @@ use tokio::prelude::*;
 use tokio::spawn;
 use tokio_codec::{Encoder, Decoder};
 
-use connection::Connection;
+use crate::connection::Connection;
 
 
 /// Server provides a generic base for building stream servers.

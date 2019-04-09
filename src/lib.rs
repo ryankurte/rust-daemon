@@ -37,39 +37,39 @@ trait GenericServer {
     type Request;
     type Response;
     
-    fn send(&mut self, Self::Address);
+    fn send(&mut self, _: Self::Address);
     //fn incoming(&mut self) -> Option<UnboundedReceiver<Request<>>>;
 }
 
 /// Server provides a generic server over a stream and codec
 /// This is used to implement daemon servers (ie. long running processes w/ network communication)
 pub mod server;
-pub use server::Server;
+pub use crate::server::Server;
 
 /// Connection provides a generic connection over a stream and codec
 /// This is used to implement clients (ie. for a command line utility)
 pub mod connection;
-pub use connection::Connection;
+pub use crate::connection::Connection;
 
 /// Codecs implement protocol handling over connectors
 pub mod codecs;
 
 /// TCP implements a TCP socket server and connection
 pub mod tcp;
-pub use tcp::{TcpServer, TcpInfo, TcpConnection};
+pub use crate::tcp::{TcpServer, TcpInfo, TcpConnection};
 
 /// UDP implements a UDP socket connection
 /// As UDP is connection-less, no server is required
 pub mod udp;
-pub use udp::{UdpConnection, UdpInfo};
+pub use crate::udp::{UdpConnection, UdpInfo};
 
 /// Unix implements a Unix socket server and connection
 pub mod unix;
-pub use unix::{UnixServer, UnixInfo, UnixConnection};
+pub use crate::unix::{UnixServer, UnixInfo, UnixConnection};
 
 /// Error implements errors returned by the daemon
 pub mod error;
-pub use error::Error as DaemonError;
+pub use crate::error::Error as DaemonError;
 
 
 /// JsonCodec re-exports the JSON codec for convenience

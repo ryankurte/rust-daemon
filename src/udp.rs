@@ -20,7 +20,7 @@ use tokio_codec::{Encoder, Decoder};
 use tokio::spawn;
 use tokio::net::udp::{UdpSocket, UdpFramed};
 
-use error::Error;
+use crate::error::Error;
 
 /// ```no_run
 /// use std::net::{SocketAddr, IpAddr, Ipv4Addr};

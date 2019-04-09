@@ -16,9 +16,9 @@ use tokio_codec::{Encoder, Decoder};
 
 use tokio_tcp::{TcpListener, TcpStream};
 
-use server::Server;
-use connection::Connection;
-use error::Error;
+use crate::server::Server;
+use crate::connection::Connection;
+use crate::error::Error;
 
 
 /// TcpServer is a Server implementation over TcpStream and TcpInfo types with a generic codec
