@@ -117,7 +117,7 @@ where
     }
 
     pub fn close(self) {
-        
+        self.shutdown();
     }
 }
 
@@ -173,11 +173,12 @@ where
     }
 
     // Connect to a TCP socket
-    pub fn connect(&mut self, address: &SocketAddr) -> Result<(), Error> {
-        let socket = TcpStream::connect(&address).wait()?;
-        let info = TcpInfo{address: address.clone()};
-        self.bind(info, socket);
-
-        Ok(())
+    pub fn connect(&mut self, address: SocketAddr) -> impl Future<Item=(), Error=Error> {
+        let mut s = self.clone();
+        TcpStream::connect(&address).map(move |socket| {
+            let info = TcpInfo{address: address.clone()};
+            s.bind(info, socket);
+            ()
+        }).map_err(|e| e.into() )
     }
 }

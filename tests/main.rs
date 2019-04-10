@@ -17,7 +17,7 @@ use tokio::{run, spawn};
 extern crate serde_derive;
 
 extern crate daemon_engine;
-use daemon_engine::{UnixConnection, TcpConnection, UnixServer, TcpServer, JsonCodec};
+use daemon_engine::{UnixConnection, TcpConnection, UnixServer, TcpServer, JsonCodec, AsyncWait};
 
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -28,7 +28,6 @@ struct Test {
 // This test is disabled as it is unreliable as heck
 // TODO: work out why and fix it
 #[test]
-#[ignore]
 fn client_server_unix() {
     let path = format!("{}rust-daemon.sock", env::temp_dir().to_str().unwrap());
     println!("[TEST UNIX] socket path: {}", path);
@@ -42,13 +41,13 @@ fn client_server_unix() {
         let server_handle = server.incoming().unwrap()
             .for_each(move |req| {
                 let data = req.data();
-                req.send(data).wait().unwrap();
+                req.send(data).async_wait().unwrap();
                 Ok(())
             }).map_err(|_e| ());
         spawn(server_handle);
 
         println!("[TEST UNIX] Creating client");
-        let client = UnixConnection::<JsonCodec<Test, Test>>::new(&path, JsonCodec::new() ).wait().unwrap();
+        let client = UnixConnection::<JsonCodec<Test, Test>>::new(&path, JsonCodec::new() ).async_wait().unwrap();
 
         let (tx, rx) = client.clone().split();
 
@@ -82,7 +81,6 @@ fn client_server_unix() {
 // These tests are disabled as they are unreliable on test infrastructure :-(
 // TODO: work out why and fix it
 #[test]
-#[ignore]
 fn client_server_tcp() {
     let server_socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 8111);
     let client_socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8111);
@@ -103,7 +101,7 @@ fn client_server_tcp() {
         spawn(server_handle);
 
         println!("[TEST TCP] Creating client");
-        let client = TcpConnection::<JsonCodec<Test, Test>>::new( &client_socket, JsonCodec::new() ).wait().unwrap();
+        let client = TcpConnection::<JsonCodec<Test, Test>>::new( &client_socket, JsonCodec::new() ).async_wait().unwrap();
 
         let (tx, rx) = client.clone().split();
 

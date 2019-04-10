@@ -172,8 +172,9 @@ mod tests {
         }
     }
 
+    use crate::AsyncWait;
+
     #[test]
-    #[ignore]
     fn client_ping_pong() {
         let test = future::lazy(move || {
             // Build client pair
@@ -184,7 +185,7 @@ mod tests {
             // Send a message
             let t = "test string".to_owned();
 
-            client_a.send(t.clone()).wait().unwrap();
+            client_a.send(t.clone()).async_wait().unwrap();
 
             println!("Send message: {:?}", t);
 

@@ -117,7 +117,7 @@ where
     }
 
     pub fn close(self) {
-        
+        self.shutdown();
     }
 }
 

@@ -80,3 +80,34 @@ pub use crate::error::Error as DaemonError;
 /// This is an alias of JsonCodec with default JsonError, use codecs::json::JsonCodec to specify error type manually
 pub type JsonCodec<Req, Resp> = codecs::json::JsonCodec<Req, Resp, codecs::json::JsonError>;
 
+use futures::{future, Future, sync::oneshot};
+
+/// AsyncWait implements a `.wait()` equivalent that works from any contex.
+/// This is required because at some point in the past `.wait()` stopped doing this,
+/// and thus calling it in a polling context causes everything to lock up.
+/// see: https://github.com/tokio-rs/tokio-core/issues/182 and related issues.
+/// ``` norun
+/// // This will block forever if run in the main thread context
+/// let _client = TcpConnection::<JsonCodec<Request, Response>>::new(&addr, JsonCodec::new()).wait().unwrap();
+/// // This will work in the expected manner and return once connection has completed
+/// let _client = TcpConnection::<JsonCodec<Request, Response>>::new(&addr, JsonCodec::new()).async_wait().unwrap();
+/// ```
+pub trait AsyncWait<I, E> {
+    fn async_wait(self) -> Result<I, E>;
+}
+
+impl <F, I, E> AsyncWait<I, E> for F 
+where 
+    F: Future<Item=I, Error=E> + Send + 'static,
+    I: Send + 'static,
+    E: Send + 'static,
+{
+    fn async_wait(self) -> Result<I, E> {
+        let (tx, rx) = oneshot::channel::<Result<I, E>>();
+
+        tokio::spawn(self.then(|res| tx.send(res) ).map(|_v| () ).map_err(|_e| () ));
+
+        rx.wait().unwrap()
+    }
+}
+
