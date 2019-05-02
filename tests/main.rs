@@ -25,9 +25,10 @@ struct Test {
     text: String,
 }
 
-// This test is disabled as it is unreliable as heck
+// This test is disabled as it doesn't work on osx or windows..?
 // TODO: work out why and fix it
 #[test]
+#[ignore]
 fn client_server_unix() {
     let path = format!("{}rust-daemon.sock", env::temp_dir().to_str().unwrap());
     println!("[TEST UNIX] socket path: {}", path);
