@@ -18,7 +18,7 @@ libc = "0.2"
 futures = "0.1"
 log = { version = "0.4"}
 clap = "2.32"
-users = "0.7"
+
 bytes = "0.4.10"
 uuid = { version = "0.6", features = ["v4"] }
 
@@ -30,7 +30,6 @@ tokio = { version = "0.1.18" }
 tokio-async-await = "0.1.6"
 
 tokio-io = "0.1.7"
-tokio-uds = "0.2.0"
 tokio-serde-json-mirror = "0.1"
 tokio-timer = "0.2.5"
 tokio-codec = "0.1.1"
@@ -39,6 +38,12 @@ tokio-tcp = "0.1.2"
 tokio-udp = "0.1.3"
 tokio-core = "0.1.17"
 
+[target.'cfg(unix)'.dependencies]
+tokio-uds = "0.2.0"
+users = "0.7"
+
+[target.'cfg(windows)'.dependencies]
+tokio-uds-windows = { git = "https://github.com/Azure/tokio-uds-windows" }
 
 [[bin]]
 name = "rustd-server"

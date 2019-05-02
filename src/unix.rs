@@ -9,19 +9,47 @@
 use std::fs;
 use std::fmt::{Debug};
 use std::clone::{Clone};
+
+#[cfg(unix)]
 use libc::{gid_t, uid_t};
+
+#[cfg(windows)]
+type gid_t = usize;
+#[cfg(windows)]
+type uid_t = usize;
 
 use tokio::prelude::*;
 use tokio::spawn;
 use tokio_codec::{Encoder, Decoder};
 
+#[cfg(unix)]
 use tokio_uds::{UnixListener, UnixStream};
+
+#[cfg(windows)]
+use tokio_uds_windows::{UnixListener, UnixStream};
 
 use crate::server::Server;
 use crate::connection::Connection;
 use crate::error::Error;
 
+#[cfg(unix)]
 use users::{User, Group, get_group_by_gid, get_user_by_uid};
+
+#[cfg(windows)]
+#[derive(Clone, Debug)]
+pub struct User {}
+#[cfg(windows)]
+#[derive(Clone, Debug)]
+pub struct Group {}
+#[cfg(windows)]
+fn get_group_by_gid(gid: gid_t) -> Result<Group, ()> {
+    Ok(Group{})
+}
+#[cfg(windows)]
+fn get_user_by_uid(uid: uid_t) -> Result<User, ()> {
+    Ok(User{})
+}
+
 
 /// UnixServer is a Server implementation over UnixStream and UnixInfo types with a generic codec
 /// ```no_run
@@ -166,8 +194,14 @@ where
         let tokio_server = socket
             .incoming()
             .for_each(move |s| {
-                let creds = s.peer_cred().unwrap();
-                let info = UnixInfo::new(creds.uid, creds.gid);
+                #[cfg(unix)]
+                let info = {
+                    let creds = s.peer_cred().unwrap();
+                    UnixInfo::new(creds.uid, creds.gid)
+                };
+                #[cfg(windows)]
+                let info = UnixInfo{user: User{}, group: Group{}};
+                
                 server_int.bind(info, s); 
                 Ok(())
              })

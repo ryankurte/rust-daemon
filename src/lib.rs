@@ -9,7 +9,11 @@
  */
 
 extern crate libc;
+
+#[cfg(unix)]
 extern crate users;
+#[cfg(unix)]
+extern crate tokio_uds;
 
 extern crate futures;
 extern crate bytes;
@@ -18,7 +22,6 @@ extern crate bytes;
 extern crate tokio;
 extern crate tokio_io;
 extern crate tokio_codec;
-extern crate tokio_uds;
 extern crate tokio_tcp;
 extern crate tokio_udp;
 extern crate tokio_timer;
