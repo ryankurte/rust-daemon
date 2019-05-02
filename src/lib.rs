@@ -26,12 +26,9 @@ extern crate tokio_tcp;
 extern crate tokio_udp;
 extern crate tokio_timer;
 
+#[macro_use]
 extern crate serde;
 extern crate serde_json;
-
-#[cfg(test)]
-#[macro_use]
-extern crate serde_derive;
 
 extern crate tokio_serde_json_mirror as tokio_serde_json;
 

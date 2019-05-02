@@ -14,7 +14,7 @@ use tokio::prelude::*;
 use tokio::{run, spawn};
 
 #[macro_use]
-extern crate serde_derive;
+extern crate serde;
 
 extern crate daemon_engine;
 use daemon_engine::{UnixConnection, TcpConnection, UnixServer, TcpServer, JsonCodec, AsyncWait};

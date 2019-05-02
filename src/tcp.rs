@@ -31,7 +31,7 @@ use crate::error::Error;
 /// use tokio::{spawn, run};
 /// 
 /// #[macro_use]
-/// extern crate serde_derive;
+/// extern crate serde;
 /// 
 /// extern crate daemon_engine;
 /// use daemon_engine::{TcpServer, JsonCodec};
@@ -74,7 +74,7 @@ pub type TcpServer<C> = Server<TcpStream, C, TcpInfo>;
 /// use tokio::{spawn, run};
 /// 
 /// #[macro_use]
-/// extern crate serde_derive;
+/// extern crate serde;
 /// 
 /// extern crate daemon_engine;
 /// use daemon_engine::{TcpConnection, JsonCodec, DaemonError};

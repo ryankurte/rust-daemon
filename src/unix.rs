@@ -58,7 +58,7 @@ fn get_user_by_uid(uid: uid_t) -> Result<User, ()> {
 /// use tokio::{spawn, run};
 /// 
 /// #[macro_use]
-/// extern crate serde_derive;
+/// extern crate serde;
 /// 
 /// extern crate daemon_engine;
 /// use daemon_engine::{UnixServer, JsonCodec};
@@ -100,7 +100,7 @@ pub type UnixServer<C> = Server<UnixStream, C, UnixInfo>;
 /// use tokio::{spawn, run};
 /// 
 /// #[macro_use]
-/// extern crate serde_derive;
+/// extern crate serde;
 /// 
 /// extern crate daemon_engine;
 /// use daemon_engine::{UnixConnection, JsonCodec, DaemonError};
