@@ -129,11 +129,12 @@ where
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
 
     use tokio::prelude::*;
     use tokio::{spawn, run};
+    
     use tokio_uds::{UnixStream};
     use tokio_codec::{Decoder, Encoder};
     use bytes::{BufMut, BytesMut};
