@@ -96,7 +96,12 @@ where
         let rx_handle = conn.clone().for_each(move |data| {
             let tx = inner_tx.lock().unwrap();
             let req = Request{inner: conn.clone(), info: info.clone(), data: data.clone()};
-            tx.clone().send(req).map(|_| () ).map_err(|e| error!("[server] send error: {:?}", e) )
+            tx.clone().send(req).then(|res| {
+                if let Err(e) = res {
+                    error!("send error: {}", e);
+                }
+                Ok(())
+            })
         })
         .map_err(|e| panic!("[server] error: {:?}", e) )
         .select2(exit_rx)
