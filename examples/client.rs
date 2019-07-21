@@ -14,17 +14,27 @@ extern crate tokio;
 use tokio::prelude::*;
 
 extern crate tokio_uds;
-use tokio_uds::UnixStream;
 
 extern crate serde;
-#[macro_use]
-extern crate serde_derive;
+use serde::{Serialize, Deserialize};
 
 extern crate daemon_engine;
-use daemon_engine::{Connection, DaemonError, JsonCodec};
+use daemon_engine::{UnixConnection, DaemonError, JsonCodec};
 
-mod common;
-use common::{Request, Response};
+/// Example request object
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Request {
+    Get(String),
+    Set(String, String),
+}
+
+/// Example response object
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Response {
+    None,
+    Value(String),
+}
+
 
 fn main() {
     let matches = App::new("rustd-client")
@@ -60,7 +70,7 @@ fn main() {
     };
 
     // Create client connector
-    let client = UnixConnection::<JsonCodec<Request, Response>>::new(&addr);
+    let client = UnixConnection::<JsonCodec<Request, Response>>::new(&addr, JsonCodec::new()).wait().unwrap();
     let (tx, rx) = client.split();
 
     match matches.value_of("Value") {

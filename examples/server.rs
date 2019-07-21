@@ -17,14 +17,25 @@ use tokio::prelude::*;
 use tokio::{spawn, run};
 
 extern crate serde;
-#[macro_use]
-extern crate serde_derive;
+use serde::{Serialize, Deserialize};
 
 extern crate daemon_engine;
-use daemon_engine::{Server, JsonCodec};
+use daemon_engine::{UnixServer, JsonCodec};
 
-mod common;
-use common::{Request, Response};
+/// Example request object
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Request {
+    Get(String),
+    Set(String, String),
+}
+
+/// Example response object
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Response {
+    None,
+    Value(String),
+}
+
 
 fn main() {
     let matches = App::new("rustd-server")
@@ -43,7 +54,7 @@ fn main() {
     let addr = matches.value_of("Socket address").unwrap().to_owned();
 
     let server = future::lazy(move || {
-        let mut s = UnixServer::<JsonCodec<Response, Request>>::new(&addr).unwrap();
+        let mut s = UnixServer::<JsonCodec<Response, Request>>::new(&addr, JsonCodec::new()).unwrap();
         let m = Mutex::new(HashMap::<String, String>::new());
 
         let server_handle = s

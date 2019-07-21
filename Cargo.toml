@@ -53,3 +53,9 @@ required-features = ["examples"]
 name = "rustd-client"
 path = "src/examples/client.rs"
 required-features = ["examples"]
+
+[[example]]
+name = "server"
+
+[[example]]
+name = "client"
